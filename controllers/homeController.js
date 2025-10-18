@@ -1132,9 +1132,30 @@ class HomeController {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 12;
       const skip = (page - 1) * limit;
+      const search = req.query.search || '';
       
-      // Chỉ lấy tin đã publish
-      const filter = { isPublished: true };
+      console.log('🔍 Search query received:', search);
+      
+      // Build filter
+      let filter = { isPublished: true };
+      
+      // Add search filter if search query exists
+      // Search in: title, content (nội dung), and tags
+      if (search && search.trim()) {
+        console.log('✅ Applying search filter for:', search.trim());
+        const searchRegex = { $regex: search.trim(), $options: 'i' };
+        filter = {
+          isPublished: true,
+          $or: [
+            { title: searchRegex },
+            { content: searchRegex },
+            { tags: searchRegex }
+          ]
+        };
+        console.log('📋 Filter:', JSON.stringify(filter, null, 2));
+      } else {
+        console.log('❌ No search query, showing all published news');
+      }
       
       // Get news with pagination
       const news = await News.find(filter)
