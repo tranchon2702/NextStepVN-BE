@@ -38,6 +38,14 @@ const CompanyInfoSchema = new mongoose.Schema({
 
 // Job Schema
 const JobSchema = new mongoose.Schema({
+  // Mã công việc
+  jobCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true
+  },
+  // Tên công việc
   title: {
     type: String,
     required: true,
@@ -49,28 +57,116 @@ const JobSchema = new mongoose.Schema({
     unique: true,
     lowercase: true
   },
-  type: {
+  // Nhóm ngành nghề
+  category: {
     type: String,
-    enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
-    default: 'Full-time'
+    enum: ['CƠ KHÍ', 'Ô TÔ', 'ĐIỆN, ĐIỆN TỬ', 'IT', 'XÂY DỰNG'],
+    required: true
   },
+  // Địa điểm làm việc
   location: {
     type: String,
     required: true,
     trim: true
   },
+  // Hình thức làm việc
+  workType: {
+    type: String,
+    enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
+    default: 'Full-time'
+  },
+  // Nội dung công việc
   description: {
     type: String,
     required: true
   },
+  // Yêu cầu ứng tuyển
   requirements: [{
-    type: String,
-    required: true
+    type: String
   }],
+  // Quyền lợi
   benefits: [{
-    type: String,
-    required: true
+    type: String
   }],
+  // Lương cơ bản (range)
+  salary: {
+    min: { type: Number },
+    max: { type: Number },
+    currency: { type: String, default: '¥' },
+    note: { type: String }
+  },
+  // Thưởng
+  bonus: {
+    type: String,
+    trim: true
+  },
+  // Trợ cấp
+  allowance: {
+    type: String,
+    trim: true
+  },
+  // Phúc lợi khác
+  otherBenefits: {
+    type: String,
+    trim: true
+  },
+  // Chuyên ngành
+  major: {
+    type: String,
+    trim: true
+  },
+  // Tuổi
+  age: {
+    min: { type: Number },
+    max: { type: Number }
+  },
+  // Kinh nghiệm
+  experience: {
+    type: String,
+    trim: true
+  },
+  // Ngoại ngữ
+  language: {
+    type: String,
+    trim: true
+  },
+  // Thời gian làm thêm
+  overtime: {
+    type: String,
+    trim: true
+  },
+  // Thời gian nghỉ
+  offTime: {
+    type: String,
+    trim: true
+  },
+  // Hình thức phỏng vấn
+  interviewFormat: {
+    type: String,
+    trim: true
+  },
+  // Thời gian phỏng vấn
+  interviewTime: {
+    type: String,
+    trim: true
+  },
+  // Thông tin khác
+  otherInfo: {
+    type: String,
+    trim: true
+  },
+  // Người phụ trách
+  assignedTo: {
+    type: String,
+    trim: true
+  },
+  // Trạng thái tuyển dụng
+  recruitmentStatus: {
+    type: String,
+    enum: ['Đang tuyển', 'Ngưng tuyển', 'Đã đóng'],
+    default: 'Đang tuyển'
+  },
+  // Hiển thị trên website
   isActive: {
     type: Boolean,
     default: true

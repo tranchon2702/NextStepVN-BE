@@ -224,16 +224,19 @@ class CareersController {
   
   async getAllJobs(req, res) {
     try {
-      const { includeInactive = 'false', page = 1, limit = 50 } = req.query;
+      const { includeInactive = 'false', category, page = 1, limit = 50 } = req.query;
       
-      let jobs;
-      if (includeInactive === 'true') {
-        // For admin, return all jobs without pagination
-        jobs = await Job.find({}).sort({ order: 1, createdAt: -1 });
-      } else {
-        // For frontend, return only active jobs
-        jobs = await Job.getActiveJobs();
+      let filter = {};
+      
+      if (includeInactive !== 'true') {
+        filter.isActive = true;
       }
+      
+      if (category) {
+        filter.category = category;
+      }
+      
+      const jobs = await Job.find(filter).sort({ order: 1, createdAt: -1 });
       
       res.status(200).json({
         success: true,
@@ -251,13 +254,18 @@ class CareersController {
   async createJob(req, res) {
     try {
       console.log('Creating new job - Request body:', req.body);
-      const { title, location, type, description, requirements, benefits, isFeatured, order } = req.body;
+      const { 
+        jobCode, title, category, location, workType, description, requirements, benefits,
+        salary, bonus, allowance, otherBenefits, major, age, experience, language,
+        overtime, offTime, interviewFormat, interviewTime, otherInfo, assignedTo,
+        recruitmentStatus, isActive, isFeatured, order 
+      } = req.body;
       
-      if (!title || !location || !description) {
+      if (!title || !category || !location || !description) {
         console.log('Validation failed: Missing required fields');
         return res.status(400).json({
           success: false,
-          message: 'Title, location, and description are required'
+          message: 'Title, category, location, and description are required'
         });
       }
       
@@ -268,15 +276,33 @@ class CareersController {
         .trim();
       
       const jobData = {
+        jobCode: jobCode || undefined,
         title: title.trim(),
+        category: category,
         location: location.trim(),
-        type: type || 'Full-time',
+        workType: workType || 'Full-time',
         description: description.trim(),
         requirements: Array.isArray(requirements) ? requirements : [],
         benefits: Array.isArray(benefits) ? benefits : [],
+        salary: salary || {},
+        bonus: bonus || undefined,
+        allowance: allowance || undefined,
+        otherBenefits: otherBenefits || undefined,
+        major: major || undefined,
+        age: age || {},
+        experience: experience || undefined,
+        language: language || undefined,
+        overtime: overtime || undefined,
+        offTime: offTime || undefined,
+        interviewFormat: interviewFormat || undefined,
+        interviewTime: interviewTime || undefined,
+        otherInfo: otherInfo || undefined,
+        assignedTo: assignedTo || undefined,
+        recruitmentStatus: recruitmentStatus || 'Đang tuyển',
+        isActive: isActive !== undefined ? isActive : true,
         isFeatured: isFeatured || false,
         order: order || 0,
-        slug: slug // Add slug to jobData
+        slug: slug
       };
       
       console.log('Processed job data:', jobData);
@@ -380,10 +406,31 @@ class CareersController {
       const { jobId } = req.params;
       const updateData = { ...req.body };
       
-      // Clean up data
+      // Clean up string data
       if (updateData.title) updateData.title = updateData.title.trim();
       if (updateData.location) updateData.location = updateData.location.trim();
       if (updateData.description) updateData.description = updateData.description.trim();
+      if (updateData.jobCode) updateData.jobCode = updateData.jobCode.trim();
+      if (updateData.bonus) updateData.bonus = updateData.bonus.trim();
+      if (updateData.allowance) updateData.allowance = updateData.allowance.trim();
+      if (updateData.otherBenefits) updateData.otherBenefits = updateData.otherBenefits.trim();
+      if (updateData.major) updateData.major = updateData.major.trim();
+      if (updateData.experience) updateData.experience = updateData.experience.trim();
+      if (updateData.language) updateData.language = updateData.language.trim();
+      if (updateData.overtime) updateData.overtime = updateData.overtime.trim();
+      if (updateData.offTime) updateData.offTime = updateData.offTime.trim();
+      if (updateData.interviewFormat) updateData.interviewFormat = updateData.interviewFormat.trim();
+      if (updateData.interviewTime) updateData.interviewTime = updateData.interviewTime.trim();
+      if (updateData.otherInfo) updateData.otherInfo = updateData.otherInfo.trim();
+      if (updateData.assignedTo) updateData.assignedTo = updateData.assignedTo.trim();
+      
+      // Update slug if title changed
+      if (updateData.title) {
+        updateData.slug = updateData.title.toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .trim();
+      }
       
       const job = await Job.findByIdAndUpdate(
         jobId,

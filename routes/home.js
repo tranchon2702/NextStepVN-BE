@@ -1,7 +1,7 @@
 // routes/home.js
 const express = require('express');
 const router = express.Router();
-const { HomeController, uploadConfigs } = require('../controllers/homeController');
+const { HomeController, uploadConfigs, upload } = require('../controllers/homeController');
 const { processUploadedImages } = require('../middleware/imageProcessor');
 
 // Debug middleware để kiểm tra request
@@ -17,6 +17,9 @@ router.use((req, res, next) => {
 router.get('/hero', HomeController.getHero);
 router.put('/hero', uploadConfigs.hero, processUploadedImages, HomeController.updateHero);
 router.post('/hero/video', uploadConfigs.hero, processUploadedImages, HomeController.updateHeroVideo);
+
+// Heroes (multiple banners)
+router.put('/heroes', upload.any(), processUploadedImages, HomeController.updateHeroes);
 
 // ==================== HOME SECTIONS ROUTES ====================
 router.get('/sections', HomeController.getHomeSections);

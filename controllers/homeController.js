@@ -252,10 +252,93 @@ class HomeController {
         });
       }
     } catch (error) {
-      console.error('Error in updateHeroVideo:', error);
       res.status(500).json({
         success: false,
-        message: 'Error uploading hero video',
+        message: 'Error updating hero video',
+        error: error.message
+      });
+    }
+  }
+
+  // UPDATE Multiple Heroes
+  async updateHeroes(req, res) {
+    try {
+      console.log('--- [updateHeroes] ---');
+      console.log('req.body:', req.body);
+      console.log('req.files:', req.files);
+      
+      const heroesData = JSON.parse(req.body.heroes || '[]');
+      console.log('Parsed heroes data:', heroesData);
+      
+      // Process each hero
+      for (let i = 0; i < heroesData.length; i++) {
+        const heroData = heroesData[i];
+        let hero;
+        
+        // If hero has _id, update existing
+        if (heroData._id) {
+          hero = await Hero.findById(heroData._id);
+        }
+        
+        // If not found or no _id, create new
+        if (!hero) {
+          hero = new Hero();
+        }
+        
+        // Update fields
+        hero.title = heroData.title || hero.title;
+        hero.subtitle = heroData.subtitle !== undefined ? heroData.subtitle : hero.subtitle;
+        hero.isActive = heroData.isActive !== undefined ? heroData.isActive : hero.isActive;
+        hero.order = heroData.order !== undefined ? heroData.order : i;
+        hero.aiBannerImage = heroData.aiBannerImage || hero.aiBannerImage;
+        hero.aiBannerTitle = heroData.aiBannerTitle || hero.aiBannerTitle;
+        hero.backgroundImage = heroData.backgroundImage || hero.backgroundImage;
+        hero.buttonLink = heroData.buttonLink !== undefined ? heroData.buttonLink : hero.buttonLink;
+        
+        // Handle videoUrl (for backward compatibility)
+        if (heroData.videoUrl !== undefined) {
+          hero.videoUrl = heroData.videoUrl;
+        }
+        
+        // Handle file upload for this hero's image
+        const fileKey = `heroImage-${i}`; // Changed from heroVideo to heroImage for images
+        if (req.files && Array.isArray(req.files)) {
+          // req.files is an array when using upload.any()
+          const file = req.files.find(f => f.fieldname === fileKey);
+          if (file) {
+            // Check if it's image or video
+            if (file.mimetype.startsWith('image/')) {
+              // Use the optimized version path if available
+              if (file.versions && file.versions.webp) {
+                hero.backgroundImage = file.versions.webp;
+              } else {
+                hero.backgroundImage = `/uploads/images/${file.filename}`;
+              }
+              console.log(`Updated hero ${i} with image: ${hero.backgroundImage}`);
+            } else {
+              hero.videoUrl = `/uploads/videos/${file.filename}`;
+              console.log(`Updated hero ${i} with video: ${hero.videoUrl}`);
+            }
+          }
+        }
+        
+        await hero.save();
+        console.log(`Hero ${i} saved:`, hero._id);
+      }
+      
+      // Get all active heroes sorted by order
+      const heroes = await Hero.find({ isActive: true }).sort({ order: 1 });
+      
+      res.status(200).json({
+        success: true,
+        message: 'Heroes updated successfully',
+        data: { heroes }
+      });
+    } catch (error) {
+      console.error('Error updating heroes:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error updating heroes',
         error: error.message
       });
     }
@@ -1199,8 +1282,8 @@ class HomeController {
   // GET All homepage data
   async getHomepageData(req, res) {
     try {
-      const [hero, homeSections, customers, certifications, featuredNews, regularNews, homeContact] = await Promise.all([
-        Hero.findOne({ isActive: true }),
+      const [heroes, homeSections, customers, certifications, featuredNews, regularNews, homeContact] = await Promise.all([
+        Hero.find({ isActive: true }).sort({ order: 1 }),
         HomeSection.findOne({ isActive: true }),
         Customer.findOne({ isActive: true }),
         Certification.findOne({ isActive: true }),
@@ -1243,7 +1326,8 @@ class HomeController {
       res.status(200).json({
         success: true,
         data: {
-          hero,
+          heroes: heroes || [],
+          hero: heroes && heroes.length > 0 ? heroes[0] : null,  // Backward compatibility
           sections: homeSections?.sections?.sort((a, b) => a.order - b.order) || [],
           factoryVideo: homeSections?.factoryVideo || "",
           customers: customers?.categories || { denimWoven: [], knit: [] },
@@ -1419,5 +1503,6 @@ class HomeController {
 
 module.exports = {
   HomeController: new HomeController(),
-  uploadConfigs
+  uploadConfigs,
+  upload
 };

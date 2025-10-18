@@ -12,7 +12,7 @@ const heroSchema = new mongoose.Schema({
   },
   backgroundImage: {
     type: String,
-    required: true
+    default: "" // Cho phép tạo hero mới mà chưa có ảnh
   },
   // Thêm trường mới để lưu các phiên bản hình ảnh
   backgroundImageVersions: {
@@ -47,6 +47,14 @@ const heroSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  order: {
+    type: Number,
+    default: 0
+  },
+  buttonLink: {
+    type: String,
+    default: ""
   }
 }, {
   timestamps: true

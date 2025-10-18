@@ -33,8 +33,13 @@ function toSlug(str) {
 }
 
 async function seedCareers() {
-  await mongoose.connect(MONGO_URI);
-  console.log('🔗  Đã kết nối MongoDB');
+  try {
+    console.log('🔄 Đang kết nối MongoDB...');
+    await mongoose.connect(MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('🔗 Đã kết nối MongoDB');
 
   /* ---------------------------- 1. CLEAR OLD ------------------------------- */
   await Promise.all([
@@ -76,74 +81,123 @@ async function seedCareers() {
 
   /* -------------------------------- 4. JOBS -------------------------------- */
   const jobsRaw = [
-    // ----- FEATURED -----
+    // ----- CƠ KHÍ -----
     {
-      title: 'Production Manager',
-      location: 'Ho Chi Minh City, Vietnam',
+      jobCode: 'KSD_1',
+      title: 'Kỹ sư thiết kế cơ khí sản phẩm mềm Catia V5',
+      category: 'CƠ KHÍ',
+      location: 'Shizuoka-ken, Nhật Bản',
       type: 'Full-time',
       featured: true,
+      salary: { min: 300000, max: 450000, currency: '¥' },
+      language: 'Tiếng Nhật N3 trở lên',
     },
     {
-      title: 'Quality Control Specialist',
-      location: 'Ho Chi Minh City, Vietnam',
+      jobCode: 'KSX_2',
+      title: 'Kỹ sư cơ khí sản xuất',
+      category: 'CƠ KHÍ',
+      location: 'Tokyo, Nhật Bản',
       type: 'Full-time',
       featured: true,
+      salary: { min: 280000, max: 420000, currency: '¥' },
+      language: 'Tiếng Nhật N2',
     },
+    // ----- Ô TÔ -----
     {
-      title: 'Senior Textile Engineer',
-      location: 'Dong Nai, Vietnam',
+      jobCode: 'OTO_1',
+      title: 'Kỹ sư thiết kế chi tiết ô tô',
+      category: 'Ô TÔ',
+      location: 'Shizuoka-ken, Nhật Bản',
       type: 'Full-time',
       featured: true,
+      salary: { min: 320000, max: 480000, currency: '¥' },
+      language: 'Tiếng Nhật N3',
     },
     {
-      title: 'Global Sales Director',
-      location: 'Bangkok, Thailand',
+      jobCode: 'RD_OTO_1',
+      title: 'Kỹ sư R&D Ô tô',
+      category: 'Ô TÔ',
+      location: 'Yokohama, Nhật Bản',
       type: 'Full-time',
       featured: true,
+      salary: { min: 350000, max: 500000, currency: '¥' },
+      language: 'Tiếng Nhật N2 hoặc tiếng Anh tốt',
     },
-    // ----- ACTIVE (non-featured) -----
+    // ----- ĐIỆN - ĐIỆN TỬ -----
     {
-      title: 'Merchandiser',
-      location: 'Ho Chi Minh City, Vietnam',
+      jobCode: 'DIEN_1',
+      title: 'Kỹ sư điện tử công nghiệp',
+      category: 'ĐIỆN, ĐIỆN TỬ',
+      location: 'Osaka, Nhật Bản',
       type: 'Full-time',
+      salary: { min: 290000, max: 430000, currency: '¥' },
+      language: 'Tiếng Nhật N3',
     },
     {
-      title: 'Industrial Engineer (IE)',
-      location: 'Binh Duong, Vietnam',
+      jobCode: 'IOT_1',
+      title: 'Kỹ sư IoT và tự động hóa',
+      category: 'ĐIỆN, ĐIỆN TỬ',
+      location: 'Nagoya, Nhật Bản',
       type: 'Full-time',
+      salary: { min: 330000, max: 470000, currency: '¥' },
+      language: 'Tiếng Nhật N2',
     },
+    // ----- IT -----
     {
-      title: 'HR & Admin Officer',
-      location: 'Ho Chi Minh City, Vietnam',
-      type: 'Part-time',
-    },
-    {
-      title: 'Garment Pattern Maker',
-      location: 'Ho Chi Minh City, Vietnam',
-      type: 'Contract',
-    },
-    {
-      title: 'Sustainability Intern',
-      location: 'Remote – VN',
-      type: 'Internship',
-    },
-    {
-      title: 'Graphic Designer',
-      location: 'Ho Chi Minh City, Vietnam',
+      jobCode: 'DEV_1',
+      title: 'Full Stack Developer',
+      category: 'IT',
+      location: 'Tokyo, Nhật Bản',
       type: 'Full-time',
+      salary: { min: 350000, max: 550000, currency: '¥' },
+      language: 'Tiếng Nhật N3 hoặc tiếng Anh tốt',
+    },
+    {
+      jobCode: 'AI_1',
+      title: 'AI Engineer',
+      category: 'IT',
+      location: 'Tokyo, Nhật Bản',
+      type: 'Full-time',
+      salary: { min: 400000, max: 600000, currency: '¥' },
+      language: 'Tiếng Anh tốt',
+    },
+    // ----- XÂY DỰNG -----
+    {
+      jobCode: 'XD_1',
+      title: 'Kỹ sư xây dựng dân dụng',
+      category: 'XÂY DỰNG',
+      location: 'Saitama, Nhật Bản',
+      type: 'Full-time',
+      salary: { min: 300000, max: 450000, currency: '¥' },
+      language: 'Tiếng Nhật N3',
+    },
+    {
+      jobCode: 'XD_2',
+      title: 'Kỹ sư cầu đường',
+      category: 'XÂY DỰNG',
+      location: 'Kanagawa, Nhật Bản',
+      type: 'Full-time',
+      salary: { min: 330000, max: 480000, currency: '¥' },
+      language: 'Tiếng Nhật N2',
     },
     // ----- INACTIVE (để test) -----
     {
-      title: 'Logistics Coordinator',
+      jobCode: 'TEST_1',
+      title: 'Quality Control Specialist',
+      category: 'CƠ KHÍ',
       location: 'Ho Chi Minh City, Vietnam',
       type: 'Full-time',
       active: false,
+      recruitmentStatus: 'Đã đóng',
     },
     {
-      title: 'IT Support Technician',
-      location: 'Ho Chi Minh City, Vietnam',
+      jobCode: 'TEST_2',
+      title: 'Senior Textile Engineer',
+      category: 'CƠ KHÍ',
+      location: 'Dong Nai, Vietnam',
       type: 'Full-time',
       active: false,
+      recruitmentStatus: 'Ngưng tuyển',
     },
   ];
 
@@ -167,13 +221,18 @@ async function seedCareers() {
   for (let i = 0; i < jobsRaw.length; i++) {
     const jr = jobsRaw[i];
     jobDocs.push({
+      jobCode: jr.jobCode,
       title: jr.title,
       slug: toSlug(jr.title),
-      type: jr.type,
+      category: jr.category,
+      workType: jr.type,
       location: jr.location,
       description: commonDesc,
       requirements: commonReqs,
       benefits: commonBenefits,
+      salary: jr.salary || {},
+      language: jr.language,
+      recruitmentStatus: jr.recruitmentStatus || 'Đang tuyển',
       isFeatured: !!jr.featured,
       isActive: jr.active === false ? false : true,
       order: i + 1,
@@ -297,11 +356,14 @@ async function seedCareers() {
   console.log(`📑  Đã tạo ${applicationsSeed.length} ứng tuyển mẫu`);
 
   /* ------------------------------------------------------------------------- */
-  console.log('✅  Careers seed FULL completed');
+  console.log('✅ Careers seed FULL completed');
   await mongoose.disconnect();
+  process.exit(0);
+  } catch (err) {
+    console.error('❌ Error during seed:', err);
+    await mongoose.disconnect();
+    process.exit(1);
+  }
 }
 
-seedCareers().catch((err) => {
-  console.error(err);
-  mongoose.disconnect();
-});
+seedCareers();
