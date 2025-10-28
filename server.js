@@ -113,6 +113,8 @@ const contactRoutes = require('./routes/contact');
 const careersRoutes = require('./routes/careers');
 const uploadRoutes = require('./routes/upload');
 const emailConfigRoutes = require('./routes/emailConfig');
+const candidatesRoutes = require('./routes/candidates');
+const programsRoutes = require('./routes/programs');
 // Đã xóa routes/news.js vì tất cả API tin tức đã được xử lý trong routes/home.js
 
 // Use routes
@@ -128,6 +130,8 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/careers', careersRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/email-config', emailConfigRoutes);
+app.use('/api/candidates', candidatesRoutes);
+app.use('/api/programs', programsRoutes);
 // Đã xóa đăng ký routes/news.js vì tất cả API tin tức đã được xử lý trong routes/home.js
 
 // Health check

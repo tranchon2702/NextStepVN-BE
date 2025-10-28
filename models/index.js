@@ -20,4 +20,7 @@ module.exports = {
     EcoFriendly: require('./EcoFriendly'),
     HomeContact: require('./HomeContact'),
     User: require('./User'),
+    Candidate: require('./Candidate'),
+    CandidateContactRequest: require('./CandidateContactRequest'),
+    Program: require('./Program'),
   };
