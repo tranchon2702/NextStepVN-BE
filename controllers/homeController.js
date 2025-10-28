@@ -159,7 +159,7 @@ class HomeController {
       console.log('--- [updateHero] ---');
       console.log('req.body:', req.body);
       console.log('req.files:', req.files);
-      const { title, subtitle, videoUrl, aiBannerTitle, ctaType, ctaLabel, ctaSlug, ctaUrl, ctaTheme, buttonLink } = req.body;
+      const { title, subtitle, videoUrl, aiBannerTitle } = req.body;
       
       let hero = await Hero.findOne({ isActive: true });
       if (!hero) {
@@ -175,12 +175,6 @@ class HomeController {
       if (subtitle !== undefined) hero.subtitle = subtitle;
       if (videoUrl !== undefined) hero.videoUrl = videoUrl;
       if (aiBannerTitle !== undefined) hero.aiBannerTitle = aiBannerTitle;
-      if (buttonLink !== undefined) hero.buttonLink = buttonLink;
-      if (ctaType !== undefined) hero.ctaType = ctaType;
-      if (ctaLabel !== undefined) hero.ctaLabel = ctaLabel;
-      if (ctaSlug !== undefined) hero.ctaSlug = ctaSlug;
-      if (ctaUrl !== undefined) hero.ctaUrl = ctaUrl;
-      if (ctaTheme !== undefined) hero.ctaTheme = ctaTheme;
       // Handle file uploads
       if (req.files) {
         if (req.files.heroImage && req.files.heroImage[0]) {
@@ -300,12 +294,6 @@ class HomeController {
         hero.aiBannerTitle = heroData.aiBannerTitle || hero.aiBannerTitle;
         hero.backgroundImage = heroData.backgroundImage || hero.backgroundImage;
         hero.buttonLink = heroData.buttonLink !== undefined ? heroData.buttonLink : hero.buttonLink;
-        // CTA
-        if (heroData.ctaType !== undefined) hero.ctaType = heroData.ctaType;
-        if (heroData.ctaLabel !== undefined) hero.ctaLabel = heroData.ctaLabel;
-        if (heroData.ctaSlug !== undefined) hero.ctaSlug = heroData.ctaSlug;
-        if (heroData.ctaUrl !== undefined) hero.ctaUrl = heroData.ctaUrl;
-        if (heroData.ctaTheme !== undefined) hero.ctaTheme = heroData.ctaTheme;
         
         // Handle videoUrl (for backward compatibility)
         if (heroData.videoUrl !== undefined) {

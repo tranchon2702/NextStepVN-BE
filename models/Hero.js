@@ -55,29 +55,6 @@ const heroSchema = new mongoose.Schema({
   buttonLink: {
     type: String,
     default: ""
-  },
-  // CTA fields to map banner -> program/url
-  ctaType: {
-    type: String,
-    enum: ['program', 'url', 'none'],
-    default: 'none'
-  },
-  ctaLabel: {
-    type: String,
-    default: ''
-  },
-  ctaSlug: {
-    type: String,
-    default: ''
-  },
-  ctaUrl: {
-    type: String,
-    default: ''
-  },
-  ctaTheme: {
-    type: String,
-    enum: ['red', 'dark', 'light'],
-    default: 'red'
   }
 }, {
   timestamps: true

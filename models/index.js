@@ -22,5 +22,4 @@ module.exports = {
     User: require('./User'),
     Candidate: require('./Candidate'),
     CandidateContactRequest: require('./CandidateContactRequest'),
-    Program: require('./Program'),
   };
