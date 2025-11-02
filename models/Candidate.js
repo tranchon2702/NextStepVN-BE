@@ -47,13 +47,27 @@ const candidateSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  experienceJa: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   skills: {
+    type: [String],
+    default: []
+  },
+  skillsJa: {
     type: [String],
     default: []
   },
   notes: {
     type: String,
     trim: true
+  },
+  notesJa: {
+    type: String,
+    trim: true,
+    default: ''
   },
   status: {
     type: String,

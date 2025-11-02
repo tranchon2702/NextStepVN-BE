@@ -11,18 +11,35 @@ class AuthController {
     try {
       const { username, password } = req.body;
 
+      console.log('Login attempt:', { username: username?.trim(), hasPassword: !!password });
+
       // Validate input
       if (!username || !password) {
+        console.log('Missing credentials');
         return res.status(400).json({
           success: false,
           message: 'Username and password are required'
         });
       }
 
-      // Find user by username
-      const user = await User.findOne({ username });
+      // Normalize username (trim whitespace)
+      const normalizedUsername = username.trim();
+      
+      // Find user by username (exact match, case-sensitive to match how it was saved)
+      const user = await User.findOne({ username: normalizedUsername });
+
+      console.log('User search:', {
+        searchFor: normalizedUsername,
+        found: !!user,
+        userInfo: user ? { 
+          username: user.username, 
+          isActive: user.isActive,
+          role: user.role
+        } : null
+      });
 
       if (!user) {
+        console.log('User not found with username:', normalizedUsername);
         return res.status(401).json({
           success: false,
           message: 'Invalid credentials'
@@ -31,6 +48,7 @@ class AuthController {
 
       // Check if user is active
       if (!user.isActive) {
+        console.log('User account is deactivated');
         return res.status(403).json({
           success: false,
           message: 'Account is deactivated'
@@ -39,8 +57,10 @@ class AuthController {
 
       // Check password
       const isMatch = await user.comparePassword(password);
+      console.log('Password match:', isMatch);
 
       if (!isMatch) {
+        console.log('Password does not match');
         return res.status(401).json({
           success: false,
           message: 'Invalid credentials'

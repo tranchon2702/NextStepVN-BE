@@ -87,7 +87,7 @@ exports.getCandidateById = async (req, res) => {
 // Create new candidate
 exports.createCandidate = async (req, res) => {
   try {
-    const { name, email, major, jlpt, maritalStatus, phone, address, experience, skills, notes } = req.body;
+    const { name, email, major, jlpt, maritalStatus, phone, address, experience, experienceJa, skills, skillsJa, notes, notesJa } = req.body;
     
     // Check if email already exists
     const existingCandidate = await Candidate.findOne({ email, isActive: true });
@@ -106,9 +106,12 @@ exports.createCandidate = async (req, res) => {
       maritalStatus,
       phone,
       address,
-      experience,
+      experience: experience || '',
+      experienceJa: experienceJa || '',
       skills: skills ? (Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim())) : [],
-      notes
+      skillsJa: skillsJa ? (Array.isArray(skillsJa) ? skillsJa : skillsJa.split(',').map(s => s.trim())) : [],
+      notes: notes || '',
+      notesJa: notesJa || ''
     };
     
     // Handle CV upload
@@ -156,7 +159,7 @@ exports.updateCandidate = async (req, res) => {
       });
     }
     
-    const { name, email, major, jlpt, maritalStatus, phone, address, experience, skills, notes, status } = req.body;
+    const { name, email, major, jlpt, maritalStatus, phone, address, experience, experienceJa, skills, skillsJa, notes, notesJa, status } = req.body;
     
     // Check if email is being changed and already exists
     if (email && email !== candidate.email) {
@@ -177,9 +180,12 @@ exports.updateCandidate = async (req, res) => {
     if (maritalStatus) candidate.maritalStatus = maritalStatus;
     if (phone) candidate.phone = phone;
     if (address) candidate.address = address;
-    if (experience) candidate.experience = experience;
+    if (experience !== undefined) candidate.experience = experience || '';
+    if (experienceJa !== undefined) candidate.experienceJa = experienceJa || '';
     if (skills) candidate.skills = Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim());
-    if (notes) candidate.notes = notes;
+    if (skillsJa) candidate.skillsJa = Array.isArray(skillsJa) ? skillsJa : skillsJa.split(',').map(s => s.trim());
+    if (notes !== undefined) candidate.notes = notes || '';
+    if (notesJa !== undefined) candidate.notesJa = notesJa || '';
     if (status) candidate.status = status;
     
     // Handle CV upload

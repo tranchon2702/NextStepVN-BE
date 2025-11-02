@@ -1,5 +1,5 @@
 const express = require('express');
-const { CareersController, upload } = require('../controllers/careersController');
+const { CareersController, upload, uploadJobImage } = require('../controllers/careersController');
 
 const router = express.Router();
 
@@ -32,8 +32,8 @@ router.put('/contact-hr', CareersController.updateContactHR.bind(CareersControll
 // GET all jobs (admin)
 router.get('/jobs', CareersController.getAllJobs.bind(CareersController));
 
-// POST create new job
-router.post('/jobs', CareersController.createJob.bind(CareersController));
+// POST create new job (with optional image upload)
+router.post('/jobs', uploadJobImage, CareersController.createJob.bind(CareersController));
 
 // POST reorder jobs
 router.post('/jobs/reorder', CareersController.reorderJobs.bind(CareersController));
@@ -50,8 +50,8 @@ router.get('/jobs/:jobId', CareersController.getJobById.bind(CareersController))
 // GET job by slug (for job details)
 router.get('/jobs/slug/:slug', CareersController.getJobBySlug.bind(CareersController));
 
-// PUT update specific job
-router.put('/jobs/:jobId', CareersController.updateJob.bind(CareersController));
+// PUT update specific job (with optional image upload)
+router.put('/jobs/:jobId', uploadJobImage, CareersController.updateJob.bind(CareersController));
 
 // DELETE specific job
 router.delete('/jobs/:jobId', CareersController.deleteJob.bind(CareersController));
@@ -66,6 +66,9 @@ router.post('/jobs/:jobId/toggle-featured', CareersController.toggleFeaturedStat
 
 // POST submit job application (with CV upload)
 router.post('/jobs/:jobId/apply', upload.single('cv'), CareersController.submitApplication.bind(CareersController));
+
+// POST submit general CV (without specific job)
+router.post('/submit-cv', upload.single('cv'), CareersController.submitGeneralCV.bind(CareersController));
 
 // GET all applications (admin)
 router.get('/applications', CareersController.getAllApplications.bind(CareersController));

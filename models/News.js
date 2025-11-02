@@ -6,11 +6,22 @@ const newsSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  titleJa: {
+    type: String,
+    trim: true
+  },
   content: {
     type: String,
     required: true
   },
+  contentJa: {
+    type: String
+  },
   excerpt: {
+    type: String,
+    maxlength: 300
+  },
+  excerptJa: {
     type: String,
     maxlength: 300
   },

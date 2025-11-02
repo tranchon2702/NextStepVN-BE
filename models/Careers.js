@@ -51,22 +51,41 @@ const JobSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  titleJa: {
+    type: String,
+    trim: true
+  },
   slug: {
     type: String,
     required: true,
     unique: true,
     lowercase: true
   },
-  // Nhóm ngành nghề
+  // Nhóm ngành nghề (reference to JobCategory)
   category: {
     type: String,
     enum: ['CƠ KHÍ', 'Ô TÔ', 'ĐIỆN, ĐIỆN TỬ', 'IT', 'XÂY DỰNG'],
     required: true
   },
+  // Category ID từ JobCategory (nếu dùng category mới)
+  categoryId: {
+    type: String,
+    trim: true,
+    lowercase: true
+  },
+  // Ảnh job (có thể override ảnh từ category)
+  jobImage: {
+    type: String,
+    trim: true
+  },
   // Địa điểm làm việc
   location: {
     type: String,
     required: true,
+    trim: true
+  },
+  locationJa: {
+    type: String,
     trim: true
   },
   // Hình thức làm việc
@@ -80,12 +99,21 @@ const JobSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  descriptionJa: {
+    type: String
+  },
   // Yêu cầu ứng tuyển
   requirements: [{
     type: String
   }],
+  requirementsJa: [{
+    type: String
+  }],
   // Quyền lợi
   benefits: [{
+    type: String
+  }],
+  benefitsJa: [{
     type: String
   }],
   // Lương cơ bản (range)
@@ -100,8 +128,16 @@ const JobSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  bonusJa: {
+    type: String,
+    trim: true
+  },
   // Trợ cấp
   allowance: {
+    type: String,
+    trim: true
+  },
+  allowanceJa: {
     type: String,
     trim: true
   },
@@ -110,8 +146,16 @@ const JobSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  otherBenefitsJa: {
+    type: String,
+    trim: true
+  },
   // Chuyên ngành
   major: {
+    type: String,
+    trim: true
+  },
+  majorJa: {
     type: String,
     trim: true
   },
@@ -125,8 +169,16 @@ const JobSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  experienceJa: {
+    type: String,
+    trim: true
+  },
   // Ngoại ngữ
   language: {
+    type: String,
+    trim: true
+  },
+  languageJa: {
     type: String,
     trim: true
   },
@@ -135,8 +187,16 @@ const JobSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  overtimeJa: {
+    type: String,
+    trim: true
+  },
   // Thời gian nghỉ
   offTime: {
+    type: String,
+    trim: true
+  },
+  offTimeJa: {
     type: String,
     trim: true
   },
@@ -145,13 +205,25 @@ const JobSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  interviewFormatJa: {
+    type: String,
+    trim: true
+  },
   // Thời gian phỏng vấn
   interviewTime: {
     type: String,
     trim: true
   },
+  interviewTimeJa: {
+    type: String,
+    trim: true
+  },
   // Thông tin khác
   otherInfo: {
+    type: String,
+    trim: true
+  },
+  otherInfoJa: {
     type: String,
     trim: true
   },

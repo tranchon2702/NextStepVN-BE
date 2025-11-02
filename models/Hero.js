@@ -6,7 +6,15 @@ const heroSchema = new mongoose.Schema({
     required: true,
     default: "WELCOME TO SAIGON 3 JEAN"
   },
+  titleJa: {
+    type: String,
+    default: ""
+  },
   subtitle: {
+    type: String,
+    default: ""
+  },
+  subtitleJa: {
     type: String,
     default: ""
   },

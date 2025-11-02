@@ -97,71 +97,10 @@ const getSubmissionStats = async (includeSpam = false) => {
 };
 
 // Hàm gửi email tự động khi có contact submission
+// Sử dụng function từ emailHelper thay vì duplicate code
 async function sendContactEmails(submission, contactInfo) {
-  // Lấy email CSKH từ contactInfo hoặc .env
-  const cskhEmail = process.env.CSKH_EMAIL;
-  // Tạo transporter
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465,
-    secure: true,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
-  // Template email cảm ơn khách hàng
-  const customerHtml = `
-    <div style="font-family:sans-serif;max-width:600px;margin:auto;border:1px solid #eee;border-radius:8px;overflow:hidden;">
-      <div style="background:#fff;padding:24px 0 12px 0;text-align:center;">
-        <img src='https://saigon3jean.com/images/sg3jeans_logo.png' alt='Saigon3Jean' style='height:60px;display:block;margin:auto;' />
-      </div>
-      <div style="background:#1e4f7a;padding:18px 0;text-align:center;">
-        <h2 style='color:#fff;margin:0;font-size:1.35rem;'>Thank you for contacting Saigon 3 Jean!</h2>
-      </div>
-      <div style="padding:24px;">
-        <p>Dear <b>${submission.name}</b>,</p>
-        <p>Thank you for your interest in Saigon 3 Jean. We have received your message and will get back to you as soon as possible.</p>
-        <p style="margin:24px 0 0 0;">Best regards,<br/><b>Saigon 3 Jean Customer Care Team</b></p>
-        <hr style="margin:24px 0;"/>
-        <div style="font-size:13px;color:#888;">This is an automated email. Please do not reply directly.</div>
-      </div>
-    </div>
-  `;
-  // Template email thông báo CSKH
-  const cskhHtml = `
-    <div style="font-family:sans-serif;max-width:600px;margin:auto;border:1px solid #eee;border-radius:8px;overflow:hidden;">
-      <div style="background:#fff;padding:24px 0 12px 0;text-align:center;">
-        <img src='https://saigon3jean.com/images/sg3jeans_logo.png' alt='Saigon3Jean' style='height:60px;display:block;margin:auto;' />
-      </div>
-      <div style="background:#1e4f7a;padding:18px 0;text-align:center;">
-        <h2 style='color:#fff;margin:0;font-size:1.35rem;'>New Contact Submission</h2>
-      </div>
-      <div style="padding:24px;">
-        <p><b>Name:</b> ${submission.name}</p>
-        <p><b>Email:</b> ${submission.email}</p>
-        <p><b>Phone:</b> ${submission.phone}</p>
-        <p><b>Company:</b> ${submission.company}</p>
-        <p><b>Subject:</b> ${submission.subject}</p>
-        <p><b>Message:</b><br/>${submission.message}</p>
-        <p style="margin:24px 0 0 0;">Please contact the customer as soon as possible.</p>
-      </div>
-    </div>
-  `;
-  // Gửi email cảm ơn khách hàng
-  await transporter.sendMail({
-    from: `Saigon 3 Jean <${process.env.SMTP_USER}>`,
-    to: submission.email,
-    subject: 'Thank you for contacting Saigon 3 Jean',
-    html: customerHtml
-  });
-  // Gửi email thông báo CSKH (FROM là SMTP_USER)
-  await transporter.sendMail({
-    from: `Website Contact <${process.env.SMTP_USER}>`,
-    to: cskhEmail,
-    subject: 'New Contact Submission from Website',
-    html: cskhHtml
-  });
+  const { sendContactEmails: sendEmails } = require('../utils/emailHelper');
+  await sendEmails(submission);
 }
 
 class ContactController {

@@ -114,6 +114,8 @@ const careersRoutes = require('./routes/careers');
 const uploadRoutes = require('./routes/upload');
 const emailConfigRoutes = require('./routes/emailConfig');
 const candidatesRoutes = require('./routes/candidates');
+const recruiterCategoriesRoutes = require('./routes/recruiterCategories');
+const jobCategoriesRoutes = require('./routes/jobCategories');
 // Đã xóa routes/news.js vì tất cả API tin tức đã được xử lý trong routes/home.js
 
 // Use routes
@@ -121,6 +123,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/overview', overviewRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api/programs', require('./routes/programs'));
 app.use('/api/machinery', machineryRoutes);
 app.use('/api/facilities', facilitiesRoutes);
 app.use('/api/eco-friendly', ecoFriendlyRoutes);
@@ -130,6 +133,8 @@ app.use('/api/careers', careersRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/email-config', emailConfigRoutes);
 app.use('/api/candidates', candidatesRoutes);
+app.use('/api/recruiter-categories', recruiterCategoriesRoutes);
+app.use('/api/job-categories', jobCategoriesRoutes);
 // Đã xóa đăng ký routes/news.js vì tất cả API tin tức đã được xử lý trong routes/home.js
 
 // Health check

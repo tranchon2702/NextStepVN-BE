@@ -20,6 +20,7 @@ router.post('/hero/video', uploadConfigs.hero, processUploadedImages, HomeContro
 
 // Heroes (multiple banners)
 router.put('/heroes', upload.any(), processUploadedImages, HomeController.updateHeroes);
+router.delete('/heroes/:id', HomeController.deleteHero);
 
 // ==================== HOME SECTIONS ROUTES ====================
 router.get('/sections', HomeController.getHomeSections);

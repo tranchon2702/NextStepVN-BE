@@ -270,6 +270,24 @@ class HomeController {
       const heroesData = JSON.parse(req.body.heroes || '[]');
       console.log('Parsed heroes data:', heroesData);
       
+      // Get all existing hero IDs
+      const existingHeroes = await Hero.find({});
+      const existingIds = existingHeroes.map(h => h._id.toString());
+      
+      // Get IDs from submitted heroes
+      const submittedIds = heroesData
+        .filter(h => h._id)
+        .map(h => h._id.toString());
+      
+      // Find heroes to delete (exist in DB but not in submitted list)
+      const idsToDelete = existingIds.filter(id => !submittedIds.includes(id));
+      
+      // Delete heroes that are no longer in the list
+      if (idsToDelete.length > 0) {
+        await Hero.deleteMany({ _id: { $in: idsToDelete } });
+        console.log(`Deleted ${idsToDelete.length} heroes:`, idsToDelete);
+      }
+      
       // Process each hero
       for (let i = 0; i < heroesData.length; i++) {
         const heroData = heroesData[i];
@@ -287,7 +305,9 @@ class HomeController {
         
         // Update fields
         hero.title = heroData.title || hero.title;
+        hero.titleJa = heroData.titleJa !== undefined ? heroData.titleJa : hero.titleJa;
         hero.subtitle = heroData.subtitle !== undefined ? heroData.subtitle : hero.subtitle;
+        hero.subtitleJa = heroData.subtitleJa !== undefined ? heroData.subtitleJa : hero.subtitleJa;
         hero.isActive = heroData.isActive !== undefined ? heroData.isActive : hero.isActive;
         hero.order = heroData.order !== undefined ? heroData.order : i;
         hero.aiBannerImage = heroData.aiBannerImage || hero.aiBannerImage;
@@ -339,6 +359,34 @@ class HomeController {
       res.status(500).json({
         success: false,
         message: 'Error updating heroes',
+        error: error.message
+      });
+    }
+  }
+
+  // DELETE Hero by ID
+  async deleteHero(req, res) {
+    try {
+      const { id } = req.params;
+      
+      const hero = await Hero.findByIdAndDelete(id);
+      
+      if (!hero) {
+        return res.status(404).json({
+          success: false,
+          message: 'Hero not found'
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Hero deleted successfully'
+      });
+    } catch (error) {
+      console.error('Error in deleteHero:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error deleting hero',
         error: error.message
       });
     }
@@ -884,9 +932,41 @@ class HomeController {
       
       const news = await News.find({})
         .sort({ publishDate: -1, createdAt: -1 })
-        .select('title content excerpt image mainImage additionalImages publishDate isPublished isFeatured views tags author createdAt updatedAt onHome');
+        .select('title titleJa content contentJa excerpt excerptJa image mainImage additionalImages publishDate isPublished isFeatured views tags author createdAt updatedAt onHome slug');
       
       console.log(`Found ${news.length} news items`);
+      
+      // Log để debug - kiểm tra field tiếng Nhật
+      if (news.length > 0) {
+        const firstNews = news[0];
+        console.log('[getAllNewsForAdmin] Sample news RAW:', {
+          _id: firstNews._id?.toString(),
+          title: firstNews.title,
+          titleJa: firstNews.titleJa,
+          excerptJa: firstNews.excerptJa,
+          contentJa: firstNews.contentJa ? `[${firstNews.contentJa.length} chars]` : null,
+          allFields: Object.keys(firstNews.toObject ? firstNews.toObject() : firstNews),
+        });
+      }
+      
+      // Chuyển đổi Mongoose document thành plain object để đảm bảo JSON serialize đúng
+      const newsData = news.map(n => {
+        const obj = n.toObject ? n.toObject() : n;
+        return {
+          ...obj,
+          _id: obj._id?.toString(),
+          // Đảm bảo các field tiếng Nhật được include
+          titleJa: obj.titleJa || '',
+          excerptJa: obj.excerptJa || '',
+          contentJa: obj.contentJa || '',
+        };
+      });
+      
+      console.log('[getAllNewsForAdmin] First news after transform:', {
+        titleJa: newsData[0]?.titleJa || 'EMPTY',
+        excerptJa: newsData[0]?.excerptJa || 'EMPTY',
+        contentJaLength: newsData[0]?.contentJa?.length || 0,
+      });
       
       const stats = {
         total: news.length,
@@ -899,7 +979,7 @@ class HomeController {
       // Trả về dữ liệu dưới dạng mảng trực tiếp để phù hợp với client
       res.status(200).json({
         success: true,
-        data: news
+        data: newsData
       });
     } catch (error) {
       console.error('Error in getAllNewsForAdmin:', error);
@@ -979,7 +1059,7 @@ class HomeController {
   // CREATE News
   async createNews(req, res) {
     try {
-      const { title, content, excerpt, tags, isFeatured, isPublished, publishDate, onHome } = req.body;
+      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome } = req.body;
       
       console.log('Create News - req.files:', req.files);
       console.log('Create News - req.file:', req.file);
@@ -1000,8 +1080,11 @@ class HomeController {
       
       const news = new News({
         title,
+        titleJa: titleJa || '',
         content,
+        contentJa: contentJa || '',
         excerpt: excerpt || '',
+        excerptJa: excerptJa || '',
         mainImage: mainImageUrl,
         additionalImages: [],
         image: mainImageUrl, // Giữ backward compatibility
@@ -1038,7 +1121,7 @@ class HomeController {
   async updateNews(req, res) {
     try {
       const { id } = req.params;
-      const { title, content, excerpt, tags, isFeatured, isPublished, publishDate, onHome } = req.body;
+      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome } = req.body;
       
       console.log('Update News - req.files:', req.files);
       console.log('Update News - req.file:', req.file);
@@ -1051,8 +1134,19 @@ class HomeController {
         });
       }
       
+      // Debug log
+      console.log('[updateNews] Received data:', {
+        contentLength: content?.length || 0,
+        contentJaLength: contentJa?.length || 0,
+        contentHasImg: content?.includes('<img') || false,
+        contentJaHasImg: contentJa?.includes('<img') || false,
+        contentPreview: content?.substring(0, 100),
+        contentJaPreview: contentJa?.substring(0, 100),
+      });
+      
       // Update fields
       if (title) news.title = title;
+      if (titleJa !== undefined) news.titleJa = titleJa;
       // Allow updating even when content is an empty string
       if (content !== undefined) {
         console.log('[updateNews] Incoming content length:', typeof content === 'string' ? content.length : 'not-string');
@@ -1066,7 +1160,16 @@ class HomeController {
       } else {
         console.log('[updateNews] No content field provided in body');
       }
+      // Luôn cập nhật contentJa nếu có trong request (kể cả empty string)
+      if (contentJa !== undefined) {
+        console.log('[updateNews] Updating contentJa, length:', contentJa?.length || 0);
+        news.contentJa = contentJa;
+        news.markModified('contentJa');
+      } else {
+        console.log('[updateNews] contentJa not provided in request');
+      }
       if (excerpt !== undefined) news.excerpt = excerpt;
+      if (excerptJa !== undefined) news.excerptJa = excerptJa;
       if (tags) news.tags = tags.split(',').map(tag => tag.trim());
       if (isFeatured !== undefined) news.isFeatured = isFeatured === 'true';
       if (isPublished !== undefined) news.isPublished = isPublished === 'true';

@@ -1,10 +1,11 @@
 const { CompanyInfo, Job, ContactHR, JobApplication } = require('../models/Careers');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const nodemailer = require('nodemailer');
 
 // Configure multer for CV uploads
-const storage = multer.diskStorage({
+const cvStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/cvs/');
   },
@@ -15,7 +16,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ 
-  storage: storage,
+  storage: cvStorage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: function (req, file, cb) {
     const allowedTypes = /pdf|doc|docx/;
@@ -29,6 +30,36 @@ const upload = multer({
     }
   }
 });
+
+// Configure multer for job image uploads
+const jobImageStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const dir = 'uploads/images/jobs/';
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'job-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const jobImageUpload = multer({ 
+  storage: jobImageStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
+
+// Export upload middlewares
+const uploadJobImage = jobImageUpload.single('jobImage');
 
 
 
@@ -253,20 +284,67 @@ class CareersController {
 
   async createJob(req, res) {
     try {
-      console.log('Creating new job - Request body:', req.body);
+      // Parse JSON fields from FormData if needed
+      let bodyData = req.body;
+      if (req.body.requirements && typeof req.body.requirements === 'string') {
+        bodyData.requirements = JSON.parse(req.body.requirements);
+      }
+      if (req.body.requirementsJa && typeof req.body.requirementsJa === 'string') {
+        bodyData.requirementsJa = JSON.parse(req.body.requirementsJa);
+      }
+      if (req.body.benefits && typeof req.body.benefits === 'string') {
+        bodyData.benefits = JSON.parse(req.body.benefits);
+      }
+      if (req.body.benefitsJa && typeof req.body.benefitsJa === 'string') {
+        bodyData.benefitsJa = JSON.parse(req.body.benefitsJa);
+      }
+      if (req.body.salary && typeof req.body.salary === 'string') {
+        bodyData.salary = JSON.parse(req.body.salary);
+      }
+      if (req.body.age && typeof req.body.age === 'string') {
+        bodyData.age = JSON.parse(req.body.age);
+      }
+
+      console.log('Creating new job - Request body:', bodyData);
       const { 
-        jobCode, title, category, location, workType, description, requirements, benefits,
-        salary, bonus, allowance, otherBenefits, major, age, experience, language,
-        overtime, offTime, interviewFormat, interviewTime, otherInfo, assignedTo,
-        recruitmentStatus, isActive, isFeatured, order 
-      } = req.body;
+        jobCode, title, titleJa, category, categoryId, location, locationJa, workType, 
+        description, descriptionJa, requirements, requirementsJa, benefits, benefitsJa,
+        salary, bonus, bonusJa, allowance, allowanceJa, otherBenefits, otherBenefitsJa, 
+        major, majorJa, age, experience, experienceJa, language, languageJa,
+        overtime, overtimeJa, offTime, offTimeJa, interviewFormat, interviewFormatJa, 
+        interviewTime, interviewTimeJa, otherInfo, otherInfoJa, assignedTo,
+        recruitmentStatus, isActive, isFeatured, order, useCategoryImage
+      } = bodyData;
       
       if (!title || !category || !location || !description) {
         console.log('Validation failed: Missing required fields');
+        // Delete uploaded file if exists
+        if (req.file) {
+          const filePath = path.join(__dirname, '..', req.file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
         return res.status(400).json({
           success: false,
           message: 'Title, category, location, and description are required'
         });
+      }
+      
+      // Handle job image
+      let jobImageUrl = '';
+      if (req.file) {
+        // User uploaded custom image
+        jobImageUrl = `/uploads/images/jobs/${req.file.filename}`;
+      } else if (useCategoryImage === 'false' || useCategoryImage === false) {
+        // User wants to use custom image but didn't upload - error
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng upload ảnh hoặc chọn dùng ảnh từ danh mục'
+        });
+      } else {
+        // useCategoryImage is true - will use category image on frontend
+        jobImageUrl = ''; // Empty means use category image
       }
       
       // Generate slug from title
@@ -278,25 +356,42 @@ class CareersController {
       const jobData = {
         jobCode: jobCode || undefined,
         title: title.trim(),
+        titleJa: titleJa?.trim() || undefined,
         category: category,
+        categoryId: categoryId || undefined,
         location: location.trim(),
+        locationJa: locationJa?.trim() || undefined,
         workType: workType || 'Full-time',
         description: description.trim(),
+        descriptionJa: descriptionJa?.trim() || undefined,
         requirements: Array.isArray(requirements) ? requirements : [],
+        requirementsJa: Array.isArray(requirementsJa) ? requirementsJa : [],
         benefits: Array.isArray(benefits) ? benefits : [],
+        benefitsJa: Array.isArray(benefitsJa) ? benefitsJa : [],
         salary: salary || {},
         bonus: bonus || undefined,
+        bonusJa: bonusJa || undefined,
         allowance: allowance || undefined,
+        allowanceJa: allowanceJa || undefined,
         otherBenefits: otherBenefits || undefined,
+        otherBenefitsJa: otherBenefitsJa || undefined,
         major: major || undefined,
+        majorJa: majorJa || undefined,
         age: age || {},
         experience: experience || undefined,
+        experienceJa: experienceJa || undefined,
         language: language || undefined,
+        languageJa: languageJa || undefined,
         overtime: overtime || undefined,
+        overtimeJa: overtimeJa || undefined,
         offTime: offTime || undefined,
+        offTimeJa: offTimeJa || undefined,
         interviewFormat: interviewFormat || undefined,
+        interviewFormatJa: interviewFormatJa || undefined,
         interviewTime: interviewTime || undefined,
+        interviewTimeJa: interviewTimeJa || undefined,
         otherInfo: otherInfo || undefined,
+        otherInfoJa: otherInfoJa || undefined,
         assignedTo: assignedTo || undefined,
         recruitmentStatus: recruitmentStatus || 'Đang tuyển',
         isActive: isActive !== undefined ? isActive : true,
@@ -304,6 +399,11 @@ class CareersController {
         order: order || 0,
         slug: slug
       };
+
+      // Only set jobImage if we have a custom image
+      if (jobImageUrl) {
+        jobData.jobImage = jobImageUrl;
+      }
       
       console.log('Processed job data:', jobData);
       const job = new Job(jobData);
@@ -318,6 +418,13 @@ class CareersController {
       });
     } catch (error) {
       console.error('Error in createJob:', error);
+      // Delete uploaded file if error
+      if (req.file) {
+        const filePath = path.join(__dirname, '..', req.file.path);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
       if (error.code === 11000) {
         console.log('Duplicate key error:', error.keyValue);
         res.status(400).json({
@@ -403,25 +510,76 @@ class CareersController {
 
   async updateJob(req, res) {
     try {
+      // Parse JSON fields from FormData if needed
+      let bodyData = req.body;
+      if (req.body.requirements && typeof req.body.requirements === 'string') {
+        bodyData.requirements = JSON.parse(req.body.requirements);
+      }
+      if (req.body.requirementsJa && typeof req.body.requirementsJa === 'string') {
+        bodyData.requirementsJa = JSON.parse(req.body.requirementsJa);
+      }
+      if (req.body.benefits && typeof req.body.benefits === 'string') {
+        bodyData.benefits = JSON.parse(req.body.benefits);
+      }
+      if (req.body.benefitsJa && typeof req.body.benefitsJa === 'string') {
+        bodyData.benefitsJa = JSON.parse(req.body.benefitsJa);
+      }
+      if (req.body.salary && typeof req.body.salary === 'string') {
+        bodyData.salary = JSON.parse(req.body.salary);
+      }
+      if (req.body.age && typeof req.body.age === 'string') {
+        bodyData.age = JSON.parse(req.body.age);
+      }
+
       const { jobId } = req.params;
-      const updateData = { ...req.body };
+      const updateData = { ...bodyData };
+      
+      // Handle job image upload
+      if (req.file) {
+        // Delete old image if exists
+        const existingJob = await Job.findById(jobId);
+        if (existingJob && existingJob.jobImage && existingJob.jobImage.startsWith('/uploads/')) {
+          const oldFilePath = path.join(__dirname, '..', existingJob.jobImage);
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        }
+        updateData.jobImage = `/uploads/images/jobs/${req.file.filename}`;
+      } else if (bodyData.useCategoryImage === 'true' || bodyData.useCategoryImage === true) {
+        // User wants to use category image - remove jobImage
+        updateData.jobImage = undefined;
+      }
       
       // Clean up string data
       if (updateData.title) updateData.title = updateData.title.trim();
+      if (updateData.titleJa) updateData.titleJa = updateData.titleJa.trim();
       if (updateData.location) updateData.location = updateData.location.trim();
+      if (updateData.locationJa) updateData.locationJa = updateData.locationJa.trim();
       if (updateData.description) updateData.description = updateData.description.trim();
+      if (updateData.descriptionJa) updateData.descriptionJa = updateData.descriptionJa.trim();
       if (updateData.jobCode) updateData.jobCode = updateData.jobCode.trim();
       if (updateData.bonus) updateData.bonus = updateData.bonus.trim();
+      if (updateData.bonusJa) updateData.bonusJa = updateData.bonusJa.trim();
       if (updateData.allowance) updateData.allowance = updateData.allowance.trim();
+      if (updateData.allowanceJa) updateData.allowanceJa = updateData.allowanceJa.trim();
       if (updateData.otherBenefits) updateData.otherBenefits = updateData.otherBenefits.trim();
+      if (updateData.otherBenefitsJa) updateData.otherBenefitsJa = updateData.otherBenefitsJa.trim();
       if (updateData.major) updateData.major = updateData.major.trim();
+      if (updateData.majorJa) updateData.majorJa = updateData.majorJa.trim();
       if (updateData.experience) updateData.experience = updateData.experience.trim();
+      if (updateData.experienceJa) updateData.experienceJa = updateData.experienceJa.trim();
       if (updateData.language) updateData.language = updateData.language.trim();
+      if (updateData.languageJa) updateData.languageJa = updateData.languageJa.trim();
       if (updateData.overtime) updateData.overtime = updateData.overtime.trim();
+      if (updateData.overtimeJa) updateData.overtimeJa = updateData.overtimeJa.trim();
       if (updateData.offTime) updateData.offTime = updateData.offTime.trim();
+      if (updateData.offTimeJa) updateData.offTimeJa = updateData.offTimeJa.trim();
       if (updateData.interviewFormat) updateData.interviewFormat = updateData.interviewFormat.trim();
+      if (updateData.interviewFormatJa) updateData.interviewFormatJa = updateData.interviewFormatJa.trim();
       if (updateData.interviewTime) updateData.interviewTime = updateData.interviewTime.trim();
+      if (updateData.interviewTimeJa) updateData.interviewTimeJa = updateData.interviewTimeJa.trim();
       if (updateData.otherInfo) updateData.otherInfo = updateData.otherInfo.trim();
+      if (updateData.otherInfoJa) updateData.otherInfoJa = updateData.otherInfoJa.trim();
       if (updateData.assignedTo) updateData.assignedTo = updateData.assignedTo.trim();
       
       // Update slug if title changed
@@ -432,6 +590,9 @@ class CareersController {
           .trim();
       }
       
+      // Remove useCategoryImage from updateData (not a field in model)
+      delete updateData.useCategoryImage;
+      
       const job = await Job.findByIdAndUpdate(
         jobId,
         updateData,
@@ -439,6 +600,13 @@ class CareersController {
       );
       
       if (!job) {
+        // Delete uploaded file if job not found
+        if (req.file) {
+          const filePath = path.join(__dirname, '..', req.file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
         return res.status(404).json({
           success: false,
           message: 'Job not found'
@@ -451,6 +619,14 @@ class CareersController {
         data: job
       });
     } catch (error) {
+      console.error('Error in updateJob:', error);
+      // Delete uploaded file if error
+      if (req.file) {
+        const filePath = path.join(__dirname, '..', req.file.path);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
       res.status(500).json({
         success: false,
         message: 'Error updating job',
@@ -650,19 +826,94 @@ class CareersController {
         }
       });
 
-      // Gửi email thông báo HR ở background (không block response)
+      // Gửi email thông báo HR và xác nhận cho ứng viên ở background (không block response)
       (async () => {
         try {
-          const { sendHRNotificationEmail } = require('../utils/emailHelper');
+          const { sendHRNotificationEmail, sendCandidateConfirmationEmail } = require('../utils/emailHelper');
+          // Gửi email cho HR
           await sendHRNotificationEmail(application, job);
+          // Gửi email xác nhận cho ứng viên
+          await sendCandidateConfirmationEmail(application, job);
         } catch (err) {
-          console.error('Send HR notification email error (background):', err);
+          console.error('Send email error (background):', err);
         }
       })();
     } catch (error) {
       res.status(500).json({
         success: false,
         message: 'Error submitting application',
+        error: error.message
+      });
+    }
+  }
+
+  // Submit CV without specific job (general CV submission)
+  async submitGeneralCV(req, res) {
+    try {
+      const { fullName, email, phone, address } = req.body;
+      
+      if (!fullName || !email || !phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Full name, email, and phone are required'
+        });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'CV file is required'
+        });
+      }
+      
+      const applicationData = {
+        jobId: null, // No specific job
+        jobTitle: 'CV Chung / General CV',
+        jobLocation: 'N/A',
+        personalInfo: {
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          address: address ? address.trim() : ''
+        },
+        cvFile: {
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          path: req.file.path,
+          size: req.file.size,
+          mimetype: req.file.mimetype
+        }
+      };
+      
+      const application = new JobApplication(applicationData);
+      await application.save();
+      
+      // Trả về response ngay sau khi lưu DB
+      res.status(201).json({
+        success: true,
+        message: 'CV submitted successfully',
+        data: {
+          applicationId: application._id,
+          submittedAt: application.createdAt
+        }
+      });
+
+      // Gửi email thông báo HR và xác nhận cho ứng viên ở background
+      (async () => {
+        try {
+          const { sendHRNotificationEmail, sendCandidateConfirmationEmail } = require('../utils/emailHelper');
+          // Gửi email cho HR
+          await sendHRNotificationEmail(application, null);
+          // Gửi email xác nhận cho ứng viên
+          await sendCandidateConfirmationEmail(application, null);
+        } catch (err) {
+          console.error('Send email error (background):', err);
+        }
+      })();
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error submitting CV',
         error: error.message
       });
     }
@@ -1021,5 +1272,6 @@ class CareersController {
 
 module.exports = {
   CareersController: new CareersController(),
-  upload
+  upload,
+  uploadJobImage
 };
