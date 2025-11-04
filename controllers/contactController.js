@@ -172,7 +172,7 @@ class ContactController {
 
   async updateContactInfo(req, res) {
     try {
-      const { address1, address2, email, phone, workingHours, mapEmbedUrl, socialLinks } = req.body;
+      const { address1, address1Ja, address2, address2Ja, email, phone, workingHours, mapEmbedUrl, socialLinks } = req.body;
       const bannerImage = req.file ? `/uploads/images/${req.file.filename}` : undefined;
       
       console.log('Updating contact info with:', { address1, address2, email, phone, workingHours, mapEmbedUrl, socialLinks });
@@ -202,7 +202,9 @@ class ContactController {
       }
       
       if (address1 !== undefined) contactInfo.address1 = address1;
+      if (address1Ja !== undefined) contactInfo.address1Ja = address1Ja;
       if (address2 !== undefined) contactInfo.address2 = address2;
+      if (address2Ja !== undefined) contactInfo.address2Ja = address2Ja;
       if (email) contactInfo.email = email;
       if (phone !== undefined) contactInfo.phone = phone;
       if (workingHours) contactInfo.workingHours = workingHours;

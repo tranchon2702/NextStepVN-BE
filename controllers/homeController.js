@@ -1406,11 +1406,18 @@ class HomeController {
   // GET All homepage data
   async getHomepageData(req, res) {
     try {
-      const [heroes, homeSections, customers, certifications, featuredNews, regularNews, homeContact] = await Promise.all([
+      // Tối ưu: Chỉ query dữ liệu cần thiết dựa trên query parameters
+      // Mặc định fetch tất cả để backward compatibility
+      const {
+        includeSections = 'true',
+        includeCustomers = 'true',
+        includeCertifications = 'true',
+        includeContact = 'true'
+      } = req.query;
+
+      // Luôn fetch heroes và news vì chúng luôn được sử dụng
+      const promises = [
         Hero.find({ isActive: true }).sort({ order: 1 }),
-        HomeSection.findOne({ isActive: true }),
-        Customer.findOne({ isActive: true }),
-        Certification.findOne({ isActive: true }),
         // Lấy 1 tin nổi bật mới nhất được đánh dấu hiển thị trên trang chủ
         News.find({ isPublished: true, isFeatured: true, onHome: true })
           .sort({ publishDate: -1 })
@@ -1420,46 +1427,101 @@ class HomeController {
         News.find({ isPublished: true, isFeatured: false, onHome: true })
           .sort({ publishDate: -1 })
           .limit(3)
-          .select('-content'),
-        // Get home contact section
-        HomeContact.findOne({ isActive: true })
-      ]);
-      
-      // Create default home contact if not exists
-      const contactData = homeContact || new HomeContact({
-        contact: {
-          title: 'CONTACT',
-          description: 'Seeking us and you\'ll get someone who can deliver consistent, high-quality products while minimizing their ecological footprint',
-          buttonText: 'CONTACT US',
-          buttonLink: '/contact'
-        },
-        workWithUs: {
-          title: 'WORK WITH US',
-          description: 'We are looking for intelligent, passionate individuals who are ready to join us in building and growing the company',
-          buttonText: 'LEARN MORE',
-          buttonLink: '/recruitment'
-        },
-        isActive: true
-      });
-      
-      if (!homeContact) {
-        console.log('Creating default HomeContact in getHomepageData');
-        await contactData.save();
+          .select('-content')
+      ];
+
+      // Chỉ fetch sections nếu cần
+      if (includeSections === 'true') {
+        promises.push(HomeSection.findOne({ isActive: true }));
+      } else {
+        promises.push(Promise.resolve(null));
       }
+
+      // Chỉ fetch customers nếu cần
+      if (includeCustomers === 'true') {
+        promises.push(Customer.findOne({ isActive: true }));
+      } else {
+        promises.push(Promise.resolve(null));
+      }
+
+      // Chỉ fetch certifications nếu cần
+      if (includeCertifications === 'true') {
+        promises.push(Certification.findOne({ isActive: true }));
+      } else {
+        promises.push(Promise.resolve(null));
+      }
+
+      // Chỉ fetch homeContact nếu cần
+      if (includeContact === 'true') {
+        promises.push(HomeContact.findOne({ isActive: true }));
+      } else {
+        promises.push(Promise.resolve(null));
+      }
+
+      const [heroes, featuredNews, regularNews, homeSections, customers, certifications, homeContact] = await Promise.all(promises);
       
+      // Build response data based on what was fetched
+      const responseData = {
+        heroes: heroes || [],
+        hero: heroes && heroes.length > 0 ? heroes[0] : null,  // Backward compatibility
+        featuredNews: featuredNews || [],
+        regularNews: regularNews || []
+      };
+
+      // Chỉ thêm sections nếu đã fetch
+      if (includeSections === 'true' && homeSections) {
+        responseData.sections = homeSections.sections?.sort((a, b) => a.order - b.order) || [];
+        responseData.factoryVideo = homeSections.factoryVideo || "";
+      } else {
+        responseData.sections = [];
+        responseData.factoryVideo = "";
+      }
+
+      // Chỉ thêm customers nếu đã fetch
+      if (includeCustomers === 'true' && customers) {
+        responseData.customers = customers.categories || { denimWoven: [], knit: [] };
+      } else {
+        responseData.customers = { denimWoven: [], knit: [] };
+      }
+
+      // Chỉ thêm certifications nếu đã fetch
+      if (includeCertifications === 'true' && certifications) {
+        responseData.certifications = certifications.certifications?.sort((a, b) => a.order - b.order) || [];
+      } else {
+        responseData.certifications = [];
+      }
+
+      // Chỉ thêm homeContact nếu đã fetch
+      if (includeContact === 'true') {
+        // Create default home contact if not exists
+        const contactData = homeContact || new HomeContact({
+          contact: {
+            title: 'CONTACT',
+            description: 'Seeking us and you\'ll get someone who can deliver consistent, high-quality products while minimizing their ecological footprint',
+            buttonText: 'CONTACT US',
+            buttonLink: '/contact'
+          },
+          workWithUs: {
+            title: 'WORK WITH US',
+            description: 'We are looking for intelligent, passionate individuals who are ready to join us in building and growing the company',
+            buttonText: 'LEARN MORE',
+            buttonLink: '/recruitment'
+          },
+          isActive: true
+        });
+        
+        if (!homeContact) {
+          console.log('Creating default HomeContact in getHomepageData');
+          await contactData.save();
+        }
+        responseData.homeContact = contactData;
+      } else {
+        responseData.homeContact = null;
+      }
+
       res.status(200).json({
         success: true,
-        data: {
-          heroes: heroes || [],
-          hero: heroes && heroes.length > 0 ? heroes[0] : null,  // Backward compatibility
-          sections: homeSections?.sections?.sort((a, b) => a.order - b.order) || [],
-          factoryVideo: homeSections?.factoryVideo || "",
-          customers: customers?.categories || { denimWoven: [], knit: [] },
-          certifications: certifications?.certifications?.sort((a, b) => a.order - b.order) || [],
-          featuredNews: featuredNews || [],
-          regularNews: regularNews || [],
-          homeContact: contactData
-        }
+        data: responseData
       });
     } catch (error) {
       console.error('Error in getHomepageData:', error);

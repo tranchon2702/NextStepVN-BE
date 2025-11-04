@@ -347,11 +347,35 @@ class CareersController {
         jobImageUrl = ''; // Empty means use category image
       }
       
-      // Generate slug from title
-      const slug = title.toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
+      // Generate slug from title with uniqueness check
+      // Normalize Vietnamese diacritics
+      let normalized = title
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D');
+
+      let baseSlug = normalized
+        .toLowerCase()
+        .replace(/[^a-z0-9 -]/g, '')
         .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '')
         .trim();
+
+      // Fallback if still empty (e.g., title has only symbols)
+      if (!baseSlug || baseSlug.length === 0) {
+        baseSlug = `job-${Date.now()}`;
+      }
+
+      // Ensure uniqueness by appending incremental suffix if needed
+      let uniqueSlug = baseSlug;
+      let counter = 2;
+      while (await Job.findOne({ slug: uniqueSlug })) {
+        uniqueSlug = `${baseSlug}-${counter}`;
+        counter += 1;
+      }
+      const slug = uniqueSlug;
       
       const jobData = {
         jobCode: jobCode || undefined,

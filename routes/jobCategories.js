@@ -17,3 +17,4 @@ router.delete('/:id', authenticateJWT, isAdmin, jobCategoryController.deleteCate
 module.exports = router;
 
 
+

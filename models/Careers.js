@@ -356,12 +356,40 @@ const JobApplicationSchema = new mongoose.Schema({
 });
 
 // Pre-save middleware for Job slug generation
-JobSchema.pre('save', function(next) {
-  if (this.isModified('title') || this.isNew) {
-    this.slug = this.title.toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
+// Only generate slug if it's not already set (from controller)
+JobSchema.pre('save', async function(next) {
+  // Only auto-generate slug if it's not already set
+  if (!this.slug && (this.isModified('title') || this.isNew)) {
+    // Normalize Vietnamese diacritics
+    let normalized = this.title
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D');
+
+    let baseSlug = normalized
+      .toLowerCase()
+      .replace(/[^a-z0-9 -]/g, '')
       .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
       .trim();
+
+    // Fallback if still empty
+    if (!baseSlug || baseSlug.length === 0) {
+      baseSlug = `job-${Date.now()}`;
+    }
+
+    // Ensure uniqueness by appending incremental suffix if needed
+    let uniqueSlug = baseSlug;
+    let counter = 2;
+    const JobModel = this.constructor;
+    while (await JobModel.findOne({ slug: uniqueSlug, _id: { $ne: this._id } })) {
+      uniqueSlug = `${baseSlug}-${counter}`;
+      counter += 1;
+    }
+
+    this.slug = uniqueSlug;
   }
   next();
 });

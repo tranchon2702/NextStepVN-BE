@@ -11,10 +11,18 @@ const contactInfoSchema = new mongoose.Schema({
     required: true,
     default: "47 Đường số 17, Khu phố 3, P. Hiệp Bình Phước, TP. Thủ Đức, TP. HCM, Việt Nam"
   },
+  address1Ja: {
+    type: String,
+    default: ""
+  },
   address2: {
     type: String,
     required: true,
     default: "N2-D2 St, Nhon Trach Textile and Garment Industrial Park, Nhon Trach, Dong Nai Province, Vietnam"
+  },
+  address2Ja: {
+    type: String,
+    default: ""
   },
   email: {
     type: String,
