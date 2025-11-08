@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const heroSchema = new mongoose.Schema({
   title: {
     type: String,
-    required: true,
-    default: "WELCOME TO SAIGON 3 JEAN"
+    required: false, // Cho phép empty để ẩn button CTA
+    default: ""
   },
   titleJa: {
     type: String,

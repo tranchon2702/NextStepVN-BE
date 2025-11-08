@@ -304,7 +304,7 @@ class HomeController {
         }
         
         // Update fields
-        hero.title = heroData.title || hero.title;
+        hero.title = heroData.title !== undefined ? heroData.title : hero.title;
         hero.titleJa = heroData.titleJa !== undefined ? heroData.titleJa : hero.titleJa;
         hero.subtitle = heroData.subtitle !== undefined ? heroData.subtitle : hero.subtitle;
         hero.subtitleJa = heroData.subtitleJa !== undefined ? heroData.subtitleJa : hero.subtitleJa;
