@@ -87,7 +87,13 @@ class ProgramController {
       }
       
       if (!program) {
-        program = await Program.findOne({ slug: id });
+        // Tìm theo slug (tiếng Việt) hoặc slugJa (tiếng Nhật)
+        program = await Program.findOne({ 
+          $or: [
+            { slug: id },
+            { slugJa: id }
+          ]
+        });
       }
       
       if (!program) {
@@ -117,7 +123,7 @@ class ProgramController {
   // CREATE Program
   async createProgram(req, res) {
     try {
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order } = req.body;
+      const { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order, seo, slug, slugJa } = req.body;
       
       const mainImageFile = req.files && req.files.programImage ? req.files.programImage[0] : null;
       
@@ -156,7 +162,18 @@ class ProgramController {
         isFeatured: isFeatured === 'true' || isFeatured === true,
         isPublished: isPublished === 'true' || isPublished === true,
         order: order ? parseInt(order) : 0,
-        views: 0
+        views: 0,
+        slug: slug || undefined, // Mongoose sẽ auto-generate nếu không có
+        slugJa: slugJa || undefined, // Mongoose sẽ auto-generate nếu không có
+        // SEO fields - chỉ set nếu có dữ liệu, nếu không Mongoose sẽ dùng default values
+        ...(seo && {
+          seo: {
+            ...(seo.metaTitle && { metaTitle: seo.metaTitle }),
+            ...(seo.metaDescription && { metaDescription: seo.metaDescription }),
+            ...(seo.metaKeywords && { metaKeywords: Array.isArray(seo.metaKeywords) ? seo.metaKeywords : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k) }),
+            ...(seo.ogImage && { ogImage: seo.ogImage })
+          }
+        })
       });
       
       await program.save();
@@ -180,7 +197,7 @@ class ProgramController {
   async updateProgram(req, res) {
     try {
       const { id } = req.params;
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order } = req.body;
+      const { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order, seo, slug, slugJa } = req.body;
       
       // Debug log
       console.log('Update Program - Received:', {
@@ -216,6 +233,61 @@ class ProgramController {
       if (isFeatured !== undefined) program.isFeatured = isFeatured === 'true' || isFeatured === true;
       if (isPublished !== undefined) program.isPublished = isPublished === 'true' || isPublished === true;
       if (order !== undefined) program.order = parseInt(order);
+      
+      // Handle slug - use provided slug or let Mongoose auto-generate
+      if (slug && slug.trim() !== '') {
+        // Use provided slug, ensure uniqueness
+        let uniqueSlug = slug.toLowerCase().trim();
+        let counter = 2;
+        while (await Program.exists({ slug: uniqueSlug, _id: { $ne: id } })) {
+          uniqueSlug = `${slug.toLowerCase().trim()}-${counter}`;
+          counter += 1;
+        }
+        program.slug = uniqueSlug;
+      }
+      
+      // Handle slugJa - use provided slugJa or generate from titleJa
+      if (slugJa && slugJa.trim() !== '') {
+        // Use provided slugJa, ensure uniqueness
+        let uniqueSlugJa = slugJa.trim();
+        let counter = 2;
+        while (await Program.exists({ slugJa: uniqueSlugJa, _id: { $ne: id } })) {
+          uniqueSlugJa = `${slugJa.trim()}-${counter}`;
+          counter += 1;
+        }
+        program.slugJa = uniqueSlugJa;
+      } else if (titleJa && titleJa.trim() !== '') {
+        // Generate slugJa from titleJa if not provided using romaji conversion
+        const { generateSlugJaFromTitleJa } = require('../utils/japaneseToRomaji');
+        let baseSlugJa = await generateSlugJaFromTitleJa(titleJa, 'program');
+        
+        // Ensure uniqueness
+        let uniqueSlugJa = baseSlugJa;
+        let counter = 2;
+        while (await Program.exists({ slugJa: uniqueSlugJa, _id: { $ne: id } })) {
+          uniqueSlugJa = `${baseSlugJa}-${counter}`;
+          counter += 1;
+        }
+        program.slugJa = uniqueSlugJa;
+      }
+      
+      // Handle SEO fields - chỉ update nếu có dữ liệu
+      if (seo) {
+        const seoUpdate = {};
+        if (seo.metaTitle) seoUpdate.metaTitle = seo.metaTitle;
+        if (seo.metaDescription) seoUpdate.metaDescription = seo.metaDescription;
+        if (seo.metaKeywords) {
+          seoUpdate.metaKeywords = Array.isArray(seo.metaKeywords) 
+            ? seo.metaKeywords 
+            : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+        }
+        if (seo.ogImage) seoUpdate.ogImage = seo.ogImage;
+        
+        // Chỉ update seo nếu có ít nhất 1 field
+        if (Object.keys(seoUpdate).length > 0) {
+          program.seo = seoUpdate;
+        }
+      }
       
       // Update main image if new one uploaded
       const mainImageFile = req.files && req.files.programImage ? req.files.programImage[0] : null;

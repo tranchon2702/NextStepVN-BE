@@ -313,7 +313,7 @@ class CareersController {
         major, majorJa, age, experience, experienceJa, language, languageJa,
         overtime, overtimeJa, offTime, offTimeJa, interviewFormat, interviewFormatJa, 
         interviewTime, interviewTimeJa, otherInfo, otherInfoJa, assignedTo,
-        recruitmentStatus, isActive, isFeatured, order, useCategoryImage
+        recruitmentStatus, isActive, isFeatured, order, useCategoryImage, seo, slug, slugJa
       } = bodyData;
       
       if (!title || !category || !location || !description) {
@@ -347,35 +347,74 @@ class CareersController {
         jobImageUrl = ''; // Empty means use category image
       }
       
-      // Generate slug from title with uniqueness check
-      // Normalize Vietnamese diacritics
-      let normalized = title
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // strip diacritics
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'D');
+      // Generate slug from title if not provided, or use provided slug
+      let finalSlug = slug;
+      if (!finalSlug || finalSlug.trim() === '') {
+        // Normalize Vietnamese diacritics
+        let normalized = title
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+          .replace(/đ/g, 'd')
+          .replace(/Đ/g, 'D');
 
-      let baseSlug = normalized
-        .toLowerCase()
-        .replace(/[^a-z0-9 -]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .trim();
+        let baseSlug = normalized
+          .toLowerCase()
+          .replace(/[^a-z0-9 -]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .trim();
 
-      // Fallback if still empty (e.g., title has only symbols)
-      if (!baseSlug || baseSlug.length === 0) {
-        baseSlug = `job-${Date.now()}`;
+        // Fallback if still empty
+        if (!baseSlug || baseSlug.length === 0) {
+          baseSlug = `job-${Date.now()}`;
+        }
+
+        // Ensure uniqueness
+        let uniqueSlug = baseSlug;
+        let counter = 2;
+        while (await Job.findOne({ slug: uniqueSlug })) {
+          uniqueSlug = `${baseSlug}-${counter}`;
+          counter += 1;
+        }
+        finalSlug = uniqueSlug;
+      } else {
+        // Use provided slug, but ensure uniqueness
+        finalSlug = finalSlug.toLowerCase().trim();
+        let uniqueSlug = finalSlug;
+        let counter = 2;
+        while (await Job.findOne({ slug: uniqueSlug })) {
+          uniqueSlug = `${finalSlug}-${counter}`;
+          counter += 1;
+        }
+        finalSlug = uniqueSlug;
       }
-
-      // Ensure uniqueness by appending incremental suffix if needed
-      let uniqueSlug = baseSlug;
-      let counter = 2;
-      while (await Job.findOne({ slug: uniqueSlug })) {
-        uniqueSlug = `${baseSlug}-${counter}`;
-        counter += 1;
+      
+      // Generate slugJa from titleJa if not provided using romaji conversion
+      let finalSlugJa = slugJa;
+      if (titleJa && (!finalSlugJa || finalSlugJa.trim() === '')) {
+        const { generateSlugJaFromTitleJa } = require('../utils/japaneseToRomaji');
+        let baseSlugJa = await generateSlugJaFromTitleJa(titleJa, 'job');
+        
+        // Ensure uniqueness
+        let uniqueSlugJa = baseSlugJa;
+        let counter = 2;
+        while (await Job.findOne({ slugJa: uniqueSlugJa })) {
+          uniqueSlugJa = `${baseSlugJa}-${counter}`;
+          counter += 1;
+        }
+        finalSlugJa = uniqueSlugJa;
+      } else if (finalSlugJa && finalSlugJa.trim() !== '') {
+        // Use provided slugJa, but ensure uniqueness
+        finalSlugJa = finalSlugJa.trim();
+        let uniqueSlugJa = finalSlugJa;
+        let counter = 2;
+        while (await Job.findOne({ slugJa: uniqueSlugJa })) {
+          uniqueSlugJa = `${finalSlugJa}-${counter}`;
+          counter += 1;
+        }
+        finalSlugJa = uniqueSlugJa;
       }
-      const slug = uniqueSlug;
       
       const jobData = {
         jobCode: jobCode || undefined,
@@ -421,7 +460,17 @@ class CareersController {
         isActive: isActive !== undefined ? isActive : true,
         isFeatured: isFeatured || false,
         order: order || 0,
-        slug: slug
+        slug: finalSlug,
+        slugJa: finalSlugJa || undefined,
+        // SEO fields - chỉ set nếu có dữ liệu, nếu không Mongoose sẽ dùng default values
+        ...(seo && {
+          seo: {
+            ...(seo.metaTitle && { metaTitle: seo.metaTitle }),
+            ...(seo.metaDescription && { metaDescription: seo.metaDescription }),
+            ...(seo.metaKeywords && { metaKeywords: Array.isArray(seo.metaKeywords) ? seo.metaKeywords : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k) }),
+            ...(seo.ogImage && { ogImage: seo.ogImage })
+          }
+        })
       };
 
       // Only set jobImage if we have a custom image
@@ -496,7 +545,13 @@ class CareersController {
     try {
       const { slug } = req.params;
       
-      const job = await Job.findBySlug(slug);
+      // Tìm theo slug (tiếng Việt) hoặc slugJa (tiếng Nhật)
+      const job = await Job.findOne({ 
+        $or: [
+          { slug: slug, isActive: true },
+          { slugJa: slug, isActive: true }
+        ]
+      });
       
       if (!job) {
         return res.status(404).json({
@@ -606,16 +661,90 @@ class CareersController {
       if (updateData.otherInfoJa) updateData.otherInfoJa = updateData.otherInfoJa.trim();
       if (updateData.assignedTo) updateData.assignedTo = updateData.assignedTo.trim();
       
-      // Update slug if title changed
-      if (updateData.title) {
-        updateData.slug = updateData.title.toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, '')
+      // Handle slug - use provided slug or generate from title
+      if (bodyData.slug && bodyData.slug.trim() !== '') {
+        // Use provided slug, ensure uniqueness
+        let uniqueSlug = bodyData.slug.toLowerCase().trim();
+        let counter = 2;
+        while (await Job.findOne({ slug: uniqueSlug, _id: { $ne: jobId } })) {
+          uniqueSlug = `${bodyData.slug.toLowerCase().trim()}-${counter}`;
+          counter += 1;
+        }
+        updateData.slug = uniqueSlug;
+      } else if (updateData.title) {
+        // Generate slug from title if not provided
+        let normalized = updateData.title
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/đ/g, 'd')
+          .replace(/Đ/g, 'D');
+        
+        let baseSlug = normalized
+          .toLowerCase()
+          .replace(/[^a-z0-9 -]/g, '')
           .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-+|-+$/g, '')
           .trim();
+        
+        if (!baseSlug || baseSlug.length === 0) {
+          baseSlug = `job-${Date.now()}`;
+        }
+        
+        let uniqueSlug = baseSlug;
+        let counter = 2;
+        while (await Job.findOne({ slug: uniqueSlug, _id: { $ne: jobId } })) {
+          uniqueSlug = `${baseSlug}-${counter}`;
+          counter += 1;
+        }
+        updateData.slug = uniqueSlug;
+      }
+      
+      // Handle slugJa - use provided slugJa or generate from titleJa
+      if (bodyData.slugJa && bodyData.slugJa.trim() !== '') {
+        // Use provided slugJa, ensure uniqueness
+        let uniqueSlugJa = bodyData.slugJa.trim();
+        let counter = 2;
+        while (await Job.findOne({ slugJa: uniqueSlugJa, _id: { $ne: jobId } })) {
+          uniqueSlugJa = `${bodyData.slugJa.trim()}-${counter}`;
+          counter += 1;
+        }
+        updateData.slugJa = uniqueSlugJa;
+      } else if (bodyData.titleJa && bodyData.titleJa.trim() !== '') {
+        // Generate slugJa from titleJa if not provided using romaji conversion
+        const { generateSlugJaFromTitleJa } = require('../utils/japaneseToRomaji');
+        let baseSlugJa = await generateSlugJaFromTitleJa(bodyData.titleJa, 'job');
+        
+        // Ensure uniqueness
+        let uniqueSlugJa = baseSlugJa;
+        let counter = 2;
+        while (await Job.findOne({ slugJa: uniqueSlugJa, _id: { $ne: jobId } })) {
+          uniqueSlugJa = `${baseSlugJa}-${counter}`;
+          counter += 1;
+        }
+        updateData.slugJa = uniqueSlugJa;
       }
       
       // Remove useCategoryImage from updateData (not a field in model)
       delete updateData.useCategoryImage;
+      
+      // Handle SEO fields - chỉ update nếu có dữ liệu
+      if (bodyData.seo) {
+        const seoUpdate = {};
+        if (bodyData.seo.metaTitle) seoUpdate.metaTitle = bodyData.seo.metaTitle;
+        if (bodyData.seo.metaDescription) seoUpdate.metaDescription = bodyData.seo.metaDescription;
+        if (bodyData.seo.metaKeywords) {
+          seoUpdate.metaKeywords = Array.isArray(bodyData.seo.metaKeywords) 
+            ? bodyData.seo.metaKeywords 
+            : bodyData.seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+        }
+        if (bodyData.seo.ogImage) seoUpdate.ogImage = bodyData.seo.ogImage;
+        
+        // Chỉ update seo nếu có ít nhất 1 field
+        if (Object.keys(seoUpdate).length > 0) {
+          updateData.seo = seoUpdate;
+        }
+      }
       
       const job = await Job.findByIdAndUpdate(
         jobId,

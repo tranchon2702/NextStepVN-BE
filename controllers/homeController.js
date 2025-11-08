@@ -1041,8 +1041,14 @@ class HomeController {
         console.log('findById result:', news);
       }
       if (!news) {
-        news = await News.findOne({ slug: id });
-        console.log('findOne by slug result:', news);
+        // Tìm theo slug (tiếng Việt) hoặc slugJa (tiếng Nhật)
+        news = await News.findOne({ 
+          $or: [
+            { slug: id },
+            { slugJa: id }
+          ]
+        });
+        console.log('findOne by slug/slugJa result:', news);
       }
       if (!news) {
         return res.status(404).json({ success: false, message: 'News not found' });
@@ -1059,7 +1065,7 @@ class HomeController {
   // CREATE News
   async createNews(req, res) {
     try {
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome } = req.body;
+      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome, seo, slug, slugJa } = req.body;
       
       console.log('Create News - req.files:', req.files);
       console.log('Create News - req.file:', req.file);
@@ -1088,6 +1094,17 @@ class HomeController {
         mainImage: mainImageUrl,
         additionalImages: [],
         image: mainImageUrl, // Giữ backward compatibility
+        slug: slug || undefined, // Mongoose sẽ auto-generate nếu không có
+        slugJa: slugJa || undefined, // Mongoose sẽ auto-generate nếu không có
+        // SEO fields - chỉ set nếu có dữ liệu, nếu không Mongoose sẽ dùng default values
+        ...(seo && {
+          seo: {
+            ...(seo.metaTitle && { metaTitle: seo.metaTitle }),
+            ...(seo.metaDescription && { metaDescription: seo.metaDescription }),
+            ...(seo.metaKeywords && { metaKeywords: Array.isArray(seo.metaKeywords) ? seo.metaKeywords : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k) }),
+            ...(seo.ogImage && { ogImage: seo.ogImage })
+          }
+        }),
         tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
         isFeatured: isFeatured === 'true',
         isPublished: isPublished === 'true',
@@ -1121,7 +1138,7 @@ class HomeController {
   async updateNews(req, res) {
     try {
       const { id } = req.params;
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome } = req.body;
+      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome, seo, slug, slugJa } = req.body;
       
       console.log('Update News - req.files:', req.files);
       console.log('Update News - req.file:', req.file);
@@ -1175,6 +1192,61 @@ class HomeController {
       if (isPublished !== undefined) news.isPublished = isPublished === 'true';
       if (onHome !== undefined) news.onHome = onHome === 'true';
       if (publishDate) news.publishDate = publishDate;
+      
+      // Handle slug - use provided slug or let Mongoose auto-generate
+      if (slug && slug.trim() !== '') {
+        // Use provided slug, ensure uniqueness
+        let uniqueSlug = slug.toLowerCase().trim();
+        let counter = 2;
+        while (await News.exists({ slug: uniqueSlug, _id: { $ne: id } })) {
+          uniqueSlug = `${slug.toLowerCase().trim()}-${counter}`;
+          counter += 1;
+        }
+        news.slug = uniqueSlug;
+      }
+      
+      // Handle slugJa - use provided slugJa or generate from titleJa
+      if (slugJa && slugJa.trim() !== '') {
+        // Use provided slugJa, ensure uniqueness
+        let uniqueSlugJa = slugJa.trim();
+        let counter = 2;
+        while (await News.exists({ slugJa: uniqueSlugJa, _id: { $ne: id } })) {
+          uniqueSlugJa = `${slugJa.trim()}-${counter}`;
+          counter += 1;
+        }
+        news.slugJa = uniqueSlugJa;
+      } else if (titleJa && titleJa.trim() !== '') {
+        // Generate slugJa from titleJa if not provided using romaji conversion
+        const { generateSlugJaFromTitleJa } = require('../utils/japaneseToRomaji');
+        let baseSlugJa = await generateSlugJaFromTitleJa(titleJa, 'news');
+        
+        // Ensure uniqueness
+        let uniqueSlugJa = baseSlugJa;
+        let counter = 2;
+        while (await News.exists({ slugJa: uniqueSlugJa, _id: { $ne: id } })) {
+          uniqueSlugJa = `${baseSlugJa}-${counter}`;
+          counter += 1;
+        }
+        news.slugJa = uniqueSlugJa;
+      }
+      
+      // Handle SEO fields - chỉ update nếu có dữ liệu
+      if (seo) {
+        const seoUpdate = {};
+        if (seo.metaTitle) seoUpdate.metaTitle = seo.metaTitle;
+        if (seo.metaDescription) seoUpdate.metaDescription = seo.metaDescription;
+        if (seo.metaKeywords) {
+          seoUpdate.metaKeywords = Array.isArray(seo.metaKeywords) 
+            ? seo.metaKeywords 
+            : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+        }
+        if (seo.ogImage) seoUpdate.ogImage = seo.ogImage;
+        
+        // Chỉ update seo nếu có ít nhất 1 field
+        if (Object.keys(seoUpdate).length > 0) {
+          news.seo = seoUpdate;
+        }
+      }
       
       // Update main image if new one uploaded
       const mainImageFile = req.files && req.files.newsImage ? req.files.newsImage[0] : null;
@@ -1235,27 +1307,57 @@ class HomeController {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 12;
       const skip = (page - 1) * limit;
-      const search = req.query.search || '';
+      // Express automatically decodes query params, but we should handle it explicitly
+      // Check if search is already decoded or needs decoding
+      let search = req.query.search || '';
       
-      console.log('🔍 Search query received:', search);
+      // Try to decode if it looks encoded (contains %)
+      if (search && search.includes('%')) {
+        try {
+          search = decodeURIComponent(search);
+        } catch (e) {
+          // If decode fails, use original
+          console.log('⚠️ Failed to decode search query, using as-is');
+        }
+      }
+      
+      console.log('🔍 Search query received (raw):', req.query.search);
+      console.log('🔍 Search query received (processed):', search);
       
       // Build filter
       let filter = { isPublished: true };
       
       // Add search filter if search query exists
-      // Search in: title, content (nội dung), and tags
+      // Search in: title, titleJa, content, contentJa, excerpt, excerptJa, and tags
       if (search && search.trim()) {
-        console.log('✅ Applying search filter for:', search.trim());
-        const searchRegex = { $regex: search.trim(), $options: 'i' };
+        const searchTerm = search.trim();
+        console.log('✅ Applying search filter for:', searchTerm);
+        
+        // For Japanese text, we should NOT escape regex characters
+        // because Japanese characters themselves are not regex special characters
+        // Only escape if there are actual regex special characters (like . * + ? etc)
+        // But for pure Japanese text, we can use it directly
+        // Escape only ASCII regex special characters, not Unicode characters
+        const escapedSearch = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // Use regex with case-insensitive option
+        // For Japanese text, 'i' option should work fine
+        const searchRegex = { $regex: escapedSearch, $options: 'i' };
+        
         filter = {
           isPublished: true,
           $or: [
             { title: searchRegex },
+            { titleJa: searchRegex },
             { content: searchRegex },
+            { contentJa: searchRegex },
+            { excerpt: searchRegex },
+            { excerptJa: searchRegex },
             { tags: searchRegex }
           ]
         };
         console.log('📋 Filter:', JSON.stringify(filter, null, 2));
+        console.log('📋 Search regex pattern:', escapedSearch);
       } else {
         console.log('❌ No search query, showing all published news');
       }

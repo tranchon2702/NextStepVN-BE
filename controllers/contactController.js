@@ -172,7 +172,7 @@ class ContactController {
 
   async updateContactInfo(req, res) {
     try {
-      const { address1, address1Ja, address2, address2Ja, email, phone, workingHours, mapEmbedUrl, socialLinks } = req.body;
+      const { address1, address1Ja, address2, address2Ja, email, phone, workingHours, mapEmbedUrl, socialLinks, zaloId, messengerId, phoneForWidget } = req.body;
       const bannerImage = req.file ? `/uploads/images/${req.file.filename}` : undefined;
       
       console.log('Updating contact info with:', { address1, address2, email, phone, workingHours, mapEmbedUrl, socialLinks });
@@ -217,6 +217,10 @@ class ContactController {
           : socialLinks;
         contactInfo.socialLinks = { ...contactInfo.socialLinks, ...parsedSocialLinks };
       }
+      // Xử lý các trường widget - cho phép set về empty string để xóa
+      if (zaloId !== undefined) contactInfo.zaloId = zaloId || "";
+      if (messengerId !== undefined) contactInfo.messengerId = messengerId || "";
+      if (phoneForWidget !== undefined) contactInfo.phoneForWidget = phoneForWidget || "";
       
       await contactInfo.save();
       
