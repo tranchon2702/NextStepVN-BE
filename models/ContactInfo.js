@@ -46,6 +46,19 @@ const contactInfoSchema = new mongoose.Schema({
     instagram: { type: String, default: "" },
     youtube: { type: String, default: "" }
   },
+  // Chat Widget fields
+  zaloId: {
+    type: String,
+    default: ""
+  },
+  messengerId: {
+    type: String,
+    default: ""
+  },
+  phoneForWidget: {
+    type: String,
+    default: ""
+  },
   isActive: {
     type: Boolean,
     default: true
