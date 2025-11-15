@@ -932,7 +932,7 @@ class HomeController {
       
       const news = await News.find({})
         .sort({ publishDate: -1, createdAt: -1 })
-        .select('title titleJa content contentJa excerpt excerptJa image mainImage additionalImages publishDate isPublished isFeatured views tags author createdAt updatedAt onHome slug');
+        .select('title titleJa content contentJa excerpt excerptJa image mainImage additionalImages publishDate isPublished isFeatured views tags author createdAt updatedAt onHome slug slugJa seo');
       
       console.log(`Found ${news.length} news items`);
       
@@ -959,6 +959,8 @@ class HomeController {
           titleJa: obj.titleJa || '',
           excerptJa: obj.excerptJa || '',
           contentJa: obj.contentJa || '',
+          // Đảm bảo SEO được include
+          seo: obj.seo || null,
         };
       });
       
@@ -966,6 +968,9 @@ class HomeController {
         titleJa: newsData[0]?.titleJa || 'EMPTY',
         excerptJa: newsData[0]?.excerptJa || 'EMPTY',
         contentJaLength: newsData[0]?.contentJa?.length || 0,
+        hasSeo: !!newsData[0]?.seo,
+        seoType: typeof newsData[0]?.seo,
+        seoData: newsData[0]?.seo,
       });
       
       const stats = {
@@ -1065,7 +1070,17 @@ class HomeController {
   // CREATE News
   async createNews(req, res) {
     try {
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome, seo, slug, slugJa } = req.body;
+      let { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome, seo, slug, slugJa } = req.body;
+      
+      // Parse SEO từ JSON string nếu là string (khi gửi từ FormData)
+      if (seo && typeof seo === 'string') {
+        try {
+          seo = JSON.parse(seo);
+        } catch (e) {
+          console.error('Error parsing SEO JSON:', e);
+          seo = null;
+        }
+      }
       
       console.log('Create News - req.files:', req.files);
       console.log('Create News - req.file:', req.file);
@@ -1096,13 +1111,19 @@ class HomeController {
         image: mainImageUrl, // Giữ backward compatibility
         slug: slug || undefined, // Mongoose sẽ auto-generate nếu không có
         slugJa: slugJa || undefined, // Mongoose sẽ auto-generate nếu không có
-        // SEO fields - chỉ set nếu có dữ liệu, nếu không Mongoose sẽ dùng default values
+        // SEO fields - set các field được gửi lên (kể cả empty string)
         ...(seo && {
           seo: {
-            ...(seo.metaTitle && { metaTitle: seo.metaTitle }),
-            ...(seo.metaDescription && { metaDescription: seo.metaDescription }),
-            ...(seo.metaKeywords && { metaKeywords: Array.isArray(seo.metaKeywords) ? seo.metaKeywords : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k) }),
-            ...(seo.ogImage && { ogImage: seo.ogImage })
+            ...(seo.metaTitle !== undefined && { metaTitle: seo.metaTitle || '' }),
+            ...(seo.metaDescription !== undefined && { metaDescription: seo.metaDescription || '' }),
+            ...(seo.metaKeywords !== undefined && { 
+              metaKeywords: Array.isArray(seo.metaKeywords) 
+                ? seo.metaKeywords 
+                : (typeof seo.metaKeywords === 'string' 
+                  ? seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k)
+                  : [])
+            }),
+            ...(seo.ogImage !== undefined && { ogImage: seo.ogImage || '' })
           }
         }),
         tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
@@ -1138,7 +1159,23 @@ class HomeController {
   async updateNews(req, res) {
     try {
       const { id } = req.params;
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome, seo, slug, slugJa } = req.body;
+      let { title, titleJa, content, contentJa, excerpt, excerptJa, tags, isFeatured, isPublished, publishDate, onHome, seo, slug, slugJa } = req.body;
+      
+      // Debug: Log toàn bộ req.body để xem có SEO không
+      console.log('[updateNews] Full req.body keys:', Object.keys(req.body));
+      console.log('[updateNews] req.body.seo:', req.body.seo);
+      console.log('[updateNews] req.body.seo type:', typeof req.body.seo);
+      
+      // Parse SEO từ JSON string nếu là string (khi gửi từ FormData)
+      if (seo && typeof seo === 'string') {
+        try {
+          seo = JSON.parse(seo);
+          console.log('[updateNews] Parsed SEO:', seo);
+        } catch (e) {
+          console.error('Error parsing SEO JSON:', e);
+          seo = null;
+        }
+      }
       
       console.log('Update News - req.files:', req.files);
       console.log('Update News - req.file:', req.file);
@@ -1159,6 +1196,9 @@ class HomeController {
         contentJaHasImg: contentJa?.includes('<img') || false,
         contentPreview: content?.substring(0, 100),
         contentJaPreview: contentJa?.substring(0, 100),
+        hasSeo: !!seo,
+        seoType: typeof seo,
+        seoData: seo,
       });
       
       // Update fields
@@ -1230,22 +1270,35 @@ class HomeController {
         news.slugJa = uniqueSlugJa;
       }
       
-      // Handle SEO fields - chỉ update nếu có dữ liệu
+      // Handle SEO fields - update các field được gửi lên (kể cả empty string để xóa)
       if (seo) {
-        const seoUpdate = {};
-        if (seo.metaTitle) seoUpdate.metaTitle = seo.metaTitle;
-        if (seo.metaDescription) seoUpdate.metaDescription = seo.metaDescription;
-        if (seo.metaKeywords) {
-          seoUpdate.metaKeywords = Array.isArray(seo.metaKeywords) 
-            ? seo.metaKeywords 
-            : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+        // Khởi tạo seo nếu chưa có
+        if (!news.seo) {
+          news.seo = {};
         }
-        if (seo.ogImage) seoUpdate.ogImage = seo.ogImage;
         
-        // Chỉ update seo nếu có ít nhất 1 field
-        if (Object.keys(seoUpdate).length > 0) {
-          news.seo = seoUpdate;
+        // Update từng field nếu có trong request (kể cả empty string)
+        if (seo.metaTitle !== undefined) {
+          news.seo.metaTitle = seo.metaTitle || '';
         }
+        if (seo.metaDescription !== undefined) {
+          news.seo.metaDescription = seo.metaDescription || '';
+        }
+        if (seo.metaKeywords !== undefined) {
+          if (Array.isArray(seo.metaKeywords)) {
+            news.seo.metaKeywords = seo.metaKeywords;
+          } else if (typeof seo.metaKeywords === 'string') {
+            news.seo.metaKeywords = seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+          } else {
+            news.seo.metaKeywords = [];
+          }
+        }
+        if (seo.ogImage !== undefined) {
+          news.seo.ogImage = seo.ogImage || '';
+        }
+        
+        // Đánh dấu seo đã được modify để Mongoose lưu
+        news.markModified('seo');
       }
       
       // Update main image if new one uploaded

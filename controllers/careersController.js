@@ -304,9 +304,18 @@ class CareersController {
       if (req.body.age && typeof req.body.age === 'string') {
         bodyData.age = JSON.parse(req.body.age);
       }
+      // Parse SEO từ JSON string nếu là string (khi gửi từ FormData)
+      if (req.body.seo && typeof req.body.seo === 'string') {
+        try {
+          bodyData.seo = JSON.parse(req.body.seo);
+        } catch (e) {
+          console.error('Error parsing SEO JSON:', e);
+          bodyData.seo = null;
+        }
+      }
 
       console.log('Creating new job - Request body:', bodyData);
-      const { 
+      let { 
         jobCode, title, titleJa, category, categoryId, location, locationJa, workType, 
         description, descriptionJa, requirements, requirementsJa, benefits, benefitsJa,
         salary, bonus, bonusJa, allowance, allowanceJa, otherBenefits, otherBenefitsJa, 
@@ -462,13 +471,19 @@ class CareersController {
         order: order || 0,
         slug: finalSlug,
         slugJa: finalSlugJa || undefined,
-        // SEO fields - chỉ set nếu có dữ liệu, nếu không Mongoose sẽ dùng default values
+        // SEO fields - set các field được gửi lên (kể cả empty string)
         ...(seo && {
           seo: {
-            ...(seo.metaTitle && { metaTitle: seo.metaTitle }),
-            ...(seo.metaDescription && { metaDescription: seo.metaDescription }),
-            ...(seo.metaKeywords && { metaKeywords: Array.isArray(seo.metaKeywords) ? seo.metaKeywords : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k) }),
-            ...(seo.ogImage && { ogImage: seo.ogImage })
+            ...(seo.metaTitle !== undefined && { metaTitle: seo.metaTitle || '' }),
+            ...(seo.metaDescription !== undefined && { metaDescription: seo.metaDescription || '' }),
+            ...(seo.metaKeywords !== undefined && { 
+              metaKeywords: Array.isArray(seo.metaKeywords) 
+                ? seo.metaKeywords 
+                : (typeof seo.metaKeywords === 'string' 
+                  ? seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k)
+                  : [])
+            }),
+            ...(seo.ogImage !== undefined && { ogImage: seo.ogImage || '' })
           }
         })
       };
@@ -609,15 +624,40 @@ class CareersController {
       if (req.body.age && typeof req.body.age === 'string') {
         bodyData.age = JSON.parse(req.body.age);
       }
+      // Parse SEO từ JSON string nếu là string (khi gửi từ FormData)
+      if (req.body.seo && typeof req.body.seo === 'string') {
+        try {
+          bodyData.seo = JSON.parse(req.body.seo);
+        } catch (e) {
+          console.error('Error parsing SEO JSON:', e);
+          bodyData.seo = null;
+        }
+      }
 
       const { jobId } = req.params;
+      
+      // Tìm job trước để xử lý SEO và image
+      const existingJob = await Job.findById(jobId);
+      if (!existingJob) {
+        // Delete uploaded file if job not found
+        if (req.file) {
+          const filePath = path.join(__dirname, '..', req.file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
+        return res.status(404).json({
+          success: false,
+          message: 'Job not found'
+        });
+      }
+      
       const updateData = { ...bodyData };
       
       // Handle job image upload
       if (req.file) {
         // Delete old image if exists
-        const existingJob = await Job.findById(jobId);
-        if (existingJob && existingJob.jobImage && existingJob.jobImage.startsWith('/uploads/')) {
+        if (existingJob.jobImage && existingJob.jobImage.startsWith('/uploads/')) {
           const oldFilePath = path.join(__dirname, '..', existingJob.jobImage);
           if (fs.existsSync(oldFilePath)) {
             fs.unlinkSync(oldFilePath);
@@ -728,22 +768,36 @@ class CareersController {
       // Remove useCategoryImage from updateData (not a field in model)
       delete updateData.useCategoryImage;
       
-      // Handle SEO fields - chỉ update nếu có dữ liệu
+      // Handle SEO fields - update các field được gửi lên (kể cả empty string để xóa)
       if (bodyData.seo) {
-        const seoUpdate = {};
-        if (bodyData.seo.metaTitle) seoUpdate.metaTitle = bodyData.seo.metaTitle;
-        if (bodyData.seo.metaDescription) seoUpdate.metaDescription = bodyData.seo.metaDescription;
-        if (bodyData.seo.metaKeywords) {
-          seoUpdate.metaKeywords = Array.isArray(bodyData.seo.metaKeywords) 
-            ? bodyData.seo.metaKeywords 
-            : bodyData.seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+        // Khởi tạo seo nếu chưa có
+        if (!existingJob.seo) {
+          existingJob.seo = {};
         }
-        if (bodyData.seo.ogImage) seoUpdate.ogImage = bodyData.seo.ogImage;
         
-        // Chỉ update seo nếu có ít nhất 1 field
-        if (Object.keys(seoUpdate).length > 0) {
-          updateData.seo = seoUpdate;
+        // Update từng field nếu có trong request (kể cả empty string)
+        if (bodyData.seo.metaTitle !== undefined) {
+          existingJob.seo.metaTitle = bodyData.seo.metaTitle || '';
         }
+        if (bodyData.seo.metaDescription !== undefined) {
+          existingJob.seo.metaDescription = bodyData.seo.metaDescription || '';
+        }
+        if (bodyData.seo.metaKeywords !== undefined) {
+          if (Array.isArray(bodyData.seo.metaKeywords)) {
+            existingJob.seo.metaKeywords = bodyData.seo.metaKeywords;
+          } else if (typeof bodyData.seo.metaKeywords === 'string') {
+            existingJob.seo.metaKeywords = bodyData.seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+          } else {
+            existingJob.seo.metaKeywords = [];
+          }
+        }
+        if (bodyData.seo.ogImage !== undefined) {
+          existingJob.seo.ogImage = bodyData.seo.ogImage || '';
+        }
+        
+        // Đánh dấu seo đã được modify để Mongoose lưu
+        existingJob.markModified('seo');
+        updateData.seo = existingJob.seo;
       }
       
       const job = await Job.findByIdAndUpdate(
@@ -751,20 +805,6 @@ class CareersController {
         updateData,
         { new: true, runValidators: true }
       );
-      
-      if (!job) {
-        // Delete uploaded file if job not found
-        if (req.file) {
-          const filePath = path.join(__dirname, '..', req.file.path);
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-          }
-        }
-        return res.status(404).json({
-          success: false,
-          message: 'Job not found'
-        });
-      }
       
       res.status(200).json({
         success: true,

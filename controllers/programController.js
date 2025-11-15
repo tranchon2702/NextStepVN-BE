@@ -123,7 +123,17 @@ class ProgramController {
   // CREATE Program
   async createProgram(req, res) {
     try {
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order, seo, slug, slugJa } = req.body;
+      let { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order, seo, slug, slugJa } = req.body;
+      
+      // Parse SEO từ JSON string nếu là string (khi gửi từ FormData)
+      if (seo && typeof seo === 'string') {
+        try {
+          seo = JSON.parse(seo);
+        } catch (e) {
+          console.error('Error parsing SEO JSON:', e);
+          seo = null;
+        }
+      }
       
       const mainImageFile = req.files && req.files.programImage ? req.files.programImage[0] : null;
       
@@ -165,13 +175,19 @@ class ProgramController {
         views: 0,
         slug: slug || undefined, // Mongoose sẽ auto-generate nếu không có
         slugJa: slugJa || undefined, // Mongoose sẽ auto-generate nếu không có
-        // SEO fields - chỉ set nếu có dữ liệu, nếu không Mongoose sẽ dùng default values
+        // SEO fields - set các field được gửi lên (kể cả empty string)
         ...(seo && {
           seo: {
-            ...(seo.metaTitle && { metaTitle: seo.metaTitle }),
-            ...(seo.metaDescription && { metaDescription: seo.metaDescription }),
-            ...(seo.metaKeywords && { metaKeywords: Array.isArray(seo.metaKeywords) ? seo.metaKeywords : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k) }),
-            ...(seo.ogImage && { ogImage: seo.ogImage })
+            ...(seo.metaTitle !== undefined && { metaTitle: seo.metaTitle || '' }),
+            ...(seo.metaDescription !== undefined && { metaDescription: seo.metaDescription || '' }),
+            ...(seo.metaKeywords !== undefined && { 
+              metaKeywords: Array.isArray(seo.metaKeywords) 
+                ? seo.metaKeywords 
+                : (typeof seo.metaKeywords === 'string' 
+                  ? seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k)
+                  : [])
+            }),
+            ...(seo.ogImage !== undefined && { ogImage: seo.ogImage || '' })
           }
         })
       });
@@ -197,7 +213,17 @@ class ProgramController {
   async updateProgram(req, res) {
     try {
       const { id } = req.params;
-      const { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order, seo, slug, slugJa } = req.body;
+      let { title, titleJa, content, contentJa, excerpt, excerptJa, category, isFeatured, isPublished, order, seo, slug, slugJa } = req.body;
+      
+      // Parse SEO từ JSON string nếu là string (khi gửi từ FormData)
+      if (seo && typeof seo === 'string') {
+        try {
+          seo = JSON.parse(seo);
+        } catch (e) {
+          console.error('Error parsing SEO JSON:', e);
+          seo = null;
+        }
+      }
       
       // Debug log
       console.log('Update Program - Received:', {
@@ -205,6 +231,7 @@ class ProgramController {
         contentJaLength: contentJa?.length || 0,
         contentPreview: content?.substring(0, 100),
         contentJaPreview: contentJa?.substring(0, 100),
+        hasSeo: !!seo,
       });
       
       const program = await Program.findById(id);
@@ -271,22 +298,35 @@ class ProgramController {
         program.slugJa = uniqueSlugJa;
       }
       
-      // Handle SEO fields - chỉ update nếu có dữ liệu
+      // Handle SEO fields - update các field được gửi lên (kể cả empty string để xóa)
       if (seo) {
-        const seoUpdate = {};
-        if (seo.metaTitle) seoUpdate.metaTitle = seo.metaTitle;
-        if (seo.metaDescription) seoUpdate.metaDescription = seo.metaDescription;
-        if (seo.metaKeywords) {
-          seoUpdate.metaKeywords = Array.isArray(seo.metaKeywords) 
-            ? seo.metaKeywords 
-            : seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+        // Khởi tạo seo nếu chưa có
+        if (!program.seo) {
+          program.seo = {};
         }
-        if (seo.ogImage) seoUpdate.ogImage = seo.ogImage;
         
-        // Chỉ update seo nếu có ít nhất 1 field
-        if (Object.keys(seoUpdate).length > 0) {
-          program.seo = seoUpdate;
+        // Update từng field nếu có trong request (kể cả empty string)
+        if (seo.metaTitle !== undefined) {
+          program.seo.metaTitle = seo.metaTitle || '';
         }
+        if (seo.metaDescription !== undefined) {
+          program.seo.metaDescription = seo.metaDescription || '';
+        }
+        if (seo.metaKeywords !== undefined) {
+          if (Array.isArray(seo.metaKeywords)) {
+            program.seo.metaKeywords = seo.metaKeywords;
+          } else if (typeof seo.metaKeywords === 'string') {
+            program.seo.metaKeywords = seo.metaKeywords.split(',').map(k => k.trim()).filter(k => k);
+          } else {
+            program.seo.metaKeywords = [];
+          }
+        }
+        if (seo.ogImage !== undefined) {
+          program.seo.ogImage = seo.ogImage || '';
+        }
+        
+        // Đánh dấu seo đã được modify để Mongoose lưu
+        program.markModified('seo');
       }
       
       // Update main image if new one uploaded
