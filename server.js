@@ -14,14 +14,31 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // ==================== CORS CONFIGURATION ====================
+// Get allowed origins from env or use defaults
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS 
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : [
+      'http://localhost:3000', 
+      'http://localhost:5001',       // Local development FE
+      'http://localhost:3006',        // Local production FE  
+      'https://saigon3jean.com',      // Old production domain
+      'https://www.saigon3jean.com',  // Old production domain with www
+      'https://nextstepviet.com',     // New production domain
+      'https://www.nextstepviet.com', // New production domain with www
+      'http://222.255.214.144:3006',  // Direct IP access
+    ];
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://localhost:5001',       // Local development FE
-    'http://localhost:3006',        // Local production FE  
-    'https://saigon3jean.com',      // Production domain
-    'http://222.255.214.144:3006',  // Direct IP access
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
