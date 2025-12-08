@@ -76,17 +76,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 }));
 
 // ==================== DATABASE CONNECTION ====================
-// mongoose.connect(process.env.MONGODB_URI, {
-//   useNewUrlParser: true,
-//   useUnifiedTopology: true,
-//   maxPoolSize: 10,
-//   serverSelectionTimeoutMS: 5000,
-//   socketTimeoutMS: 45000,
-// });
-
-mongoose.connect('mongodb://localhost:27017/saigon3jean', {
+// URL encode password: 2702002@123456 -> 2702002%40123456
+const mongoUri = process.env.MONGODB_URI || 'mongodb://administrator:2702002%40123456@localhost:27017/nextstepviet?authSource=admin';
+mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
 });
 
 
